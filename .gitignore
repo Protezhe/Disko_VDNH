@@ -1,0 +1,30 @@
+
+ 
+# Virtual environment
+venv/
+env/
+ENV/
+
+# MP3 files
+mp3/
+
+# Config file
+scheduler_config.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

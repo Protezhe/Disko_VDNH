@@ -1,0 +1,16 @@
+scp "C:\Users\Alf\PycharmProjects\Disko_VDNH\web_interface.html" orangepi@192.168.50.203:~/disco_server/
+
+ssh orangepi@192.168.50.203
+|-]yMQp9.k|rtByx
+cd ~/disco_server
+bash start_server.sh
+
+C:\Users\Alf\PycharmProjects\Disko_VDNH\web_interface.html
+
+scp "C:\Users\Alf\PycharmProjects\Disko_VDNH\*.py" orangepi@192.168.50.203:~/disco_server/
+
+scp "C:\Users\Alf\PycharmProjects\Disko_VDNH\web_interface.html" "C:\Users\Alf\PycharmProjects\Disko_VDNH\requirements.txt" "C:\Users\Alf\PycharmProjects\Disko_VDNH\scheduler_config.json" "C:\Users\Alf\PycharmProjects\Disko_VDNH\playlist1.m3u" orangepi@192.168.50.203:~/disco_server/
+
+scp -r "C:\Users\Alf\PycharmProjects\Disko_VDNH\mp3" orangepi@192.168.50.203:~/disco_server/
+
+scp orangepi@192.168.50.203:/home/orangepi/disco_server/start_server.sh C:\Users\Alf\Downloads\

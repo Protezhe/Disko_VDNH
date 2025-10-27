@@ -1,0 +1,1763 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 Дискотека - Панель Управления 🎵</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0f0f23, #1a1a2e, #16213e);
+            min-height: 100vh;
+            color: #fff;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 30%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(236, 72, 153, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        * {
+            font-family: inherit;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            background: rgba(15, 15, 35, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(139, 92, 246, 0.3);
+            border: 2px solid rgba(139, 92, 246, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.2), transparent);
+            animation: shine 3s infinite;
+        }
+
+        @keyframes shine {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #8b5cf6, #ec4899, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            text-shadow: 0 0 30px rgba(139, 92, 246, 0.5);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.5)); }
+            to { filter: drop-shadow(0 0 20px rgba(236, 72, 153, 0.8)); }
+        }
+
+        .header .subtitle {
+            font-size: 1.2em;
+            color: #a78bfa;
+            margin-bottom: 10px;
+        }
+
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .card {
+            background: rgba(15, 15, 35, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(139, 92, 246, 0.2);
+            border: 2px solid rgba(139, 92, 246, 0.3);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(139, 92, 246, 0.6);
+            box-shadow: 0 12px 40px rgba(139, 92, 246, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .card::before {
+            content: '✨';
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 1.5em;
+            opacity: 0.3;
+        }
+
+        .card h2 {
+            color: #a78bfa;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            text-align: center;
+            text-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .status-item {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(236, 72, 153, 0.2));
+            padding: 15px;
+            border-radius: 15px;
+            text-align: center;
+            border: 2px solid rgba(139, 92, 246, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .status-item:hover {
+            border-color: rgba(139, 92, 246, 0.7);
+            transform: scale(1.02);
+        }
+
+        .status-label {
+            font-weight: bold;
+            color: #c4b5fd;
+            margin-bottom: 5px;
+        }
+
+        .status-value {
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+
+        .status-enabled {
+            color: #10b981;
+            text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+
+        .status-disabled {
+            color: #ef4444;
+            text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
+
+        .schedule-section {
+            margin-bottom: 20px;
+        }
+
+        .days-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .day-checkbox {
+            position: relative;
+        }
+
+        .day-checkbox input[type="checkbox"] {
+            display: none;
+        }
+
+        .day-checkbox label {
+            display: block;
+            padding: 15px 10px;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
+            border: 2px solid rgba(139, 92, 246, 0.4);
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: bold;
+            color: #c4b5fd;
+            transition: all 0.3s ease;
+        }
+
+        .day-checkbox input[type="checkbox"]:checked + label {
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
+            color: white;
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.6);
+        }
+
+        .time-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .time-group {
+            text-align: center;
+        }
+
+        .time-group label {
+            display: block;
+            font-weight: bold;
+            color: #c4b5fd;
+            margin-bottom: 10px;
+        }
+
+        .time-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid rgba(139, 92, 246, 0.4);
+            border-radius: 10px;
+            font-size: 1.1em;
+            text-align: center;
+            background: rgba(15, 15, 35, 0.5);
+            color: #fff;
+            transition: all 0.3s ease;
+        }
+
+        .time-group input:focus {
+            outline: none;
+            border-color: rgba(139, 92, 246, 0.8);
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 15px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
+            color: white;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(139, 92, 246, 0.6);
+            background: linear-gradient(135deg, #a78bfa, #f472b6);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(16, 185, 129, 0.6);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(239, 68, 68, 0.6);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+        }
+
+        .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(245, 158, 11, 0.6);
+        }
+
+        .audio-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            text-align: center;
+        }
+
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            color: #c4b5fd;
+            margin-bottom: 8px;
+        }
+
+        .control-group input, .control-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid rgba(139, 92, 246, 0.4);
+            border-radius: 10px;
+            font-size: 1em;
+            text-align: center;
+            background: rgba(15, 15, 35, 0.5);
+            color: #fff;
+            transition: all 0.3s ease;
+        }
+
+        .control-group input:focus, .control-group select:focus {
+            outline: none;
+            border-color: rgba(139, 92, 246, 0.8);
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
+        }
+
+        .lamp-container {
+            text-align: center;
+            padding: 30px;
+        }
+
+        .lamp {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            border: 5px solid rgba(139, 92, 246, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3em;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 32px rgba(139, 92, 246, 0.3);
+        }
+
+        .lamp.green {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            box-shadow: 0 0 40px rgba(16, 185, 129, 0.6);
+            animation: pulse-green 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-green {
+            0%, 100% { box-shadow: 0 0 40px rgba(16, 185, 129, 0.6); }
+            50% { box-shadow: 0 0 60px rgba(16, 185, 129, 0.9); }
+        }
+
+        .lamp.red {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            box-shadow: 0 0 40px rgba(239, 68, 68, 0.6);
+            animation: pulse-red 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 0 40px rgba(239, 68, 68, 0.6); }
+            50% { box-shadow: 0 0 60px rgba(239, 68, 68, 0.9); }
+        }
+
+        .lamp.gray {
+            background: linear-gradient(135deg, #374151, #4b5563);
+            color: white;
+            box-shadow: 0 0 20px rgba(107, 114, 128, 0.3);
+        }
+
+        .lamp-status {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #c4b5fd;
+            margin-bottom: 10px;
+        }
+
+        .audio-level {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #a78bfa;
+            margin-top: 10px;
+        }
+
+        .log-container {
+            background: rgba(15, 15, 35, 0.5);
+            border: 2px solid rgba(139, 92, 246, 0.4);
+            border-radius: 15px;
+            padding: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #e0e7ff;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(139, 92, 246, 0.3);
+            border-radius: 50%;
+            border-top-color: #8b5cf6;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 15px;
+            color: white;
+            font-weight: bold;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+
+        .notification.success {
+            background: linear-gradient(135deg, #10b981, #059669);
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .notification.error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+        }
+
+        .notification.warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4);
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .current-track-container {
+            text-align: center;
+            padding: 10px;
+        }
+
+        .track-info {
+            margin-bottom: 15px;
+        }
+
+        .track-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #a78bfa;
+            margin-bottom: 8px;
+            word-wrap: break-word;
+            line-height: 1.3;
+            text-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+        }
+
+        .track-artist {
+            font-size: 1.1em;
+            color: #c4b5fd;
+            margin-bottom: 8px;
+            font-style: italic;
+        }
+
+        .track-time {
+            font-size: 1em;
+            color: #a78bfa;
+            font-family: 'Courier New', monospace;
+        }
+
+
+        .track-navigation {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .track-nav-btn {
+            padding: 12px 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.3em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
+            color: white;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 50px;
+        }
+
+        .track-nav-btn:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 6px 25px rgba(139, 92, 246, 0.6);
+            background: linear-gradient(135deg, #a78bfa, #f472b6);
+        }
+
+        .track-nav-btn:active {
+            transform: translateY(0) scale(1);
+        }
+
+        .track-nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .track-status-wrapper {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
+            padding: 12px 20px;
+            border-radius: 12px;
+            border: 2px solid rgba(139, 92, 246, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: bold;
+            color: #c4b5fd;
+            min-width: 140px;
+            justify-content: center;
+        }
+
+        .track-status-wrapper.playing {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.3));
+            border-color: rgba(16, 185, 129, 0.6);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .track-status-wrapper.playing .status-text {
+            color: #10b981;
+        }
+
+        .status-icon {
+            font-size: 1.2em;
+        }
+
+        .status-text {
+            font-size: 1em;
+        }
+
+        .disco-status {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(236, 72, 153, 0.2));
+            border-radius: 15px;
+            border: 3px solid rgba(139, 92, 246, 0.5);
+            margin-bottom: 20px;
+            box-shadow: 0 0 30px rgba(139, 92, 246, 0.3);
+        }
+
+        .disco-status h3 {
+            color: #a78bfa;
+            font-size: 1.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+        }
+
+        .disco-status .status {
+            font-size: 1.2em;
+            font-weight: bold;
+            padding: 10px 20px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        .disco-status .status.playing {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.6);
+            animation: pulse-status 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-status {
+            0%, 100% { box-shadow: 0 0 30px rgba(16, 185, 129, 0.6); }
+            50% { box-shadow: 0 0 50px rgba(16, 185, 129, 0.9); }
+        }
+
+        .disco-status .status.stopped {
+            background: linear-gradient(135deg, #374151, #4b5563);
+            color: white;
+            box-shadow: 0 0 20px rgba(107, 114, 128, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header {
+                padding: 15px;
+                margin-bottom: 20px;
+            }
+            
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            /* Показываем мобильную лампу и мобильный блок "сейчас играет" */
+            .mobile-lamp-container, .mobile-current-track-container {
+                display: block !important;
+                margin-bottom: 20px;
+            }
+            
+            /* Скрываем десктопную лампу и десктопный блок "сейчас играет" в правой панели */
+            .right-panel .card:has(.lamp-container), .right-panel .card:has(.current-track-container) {
+                display: none;
+            }
+            
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .left-panel, .right-panel {
+                gap: 15px;
+            }
+            
+            .card {
+                padding: 15px;
+                margin-bottom: 15px;
+                width: 100%;
+            }
+            
+            .card h2 {
+                font-size: 1.3em;
+                margin-bottom: 15px;
+            }
+            
+            .status-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .status-item {
+                padding: 12px;
+            }
+            
+            .time-inputs {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .controls-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .audio-controls {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .days-grid {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 8px;
+            }
+            
+            .day-checkbox label {
+                padding: 12px 8px;
+                font-size: 0.9em;
+            }
+            
+            .btn {
+                padding: 12px 20px;
+                font-size: 1em;
+                margin-bottom: 10px;
+                width: 100%;
+            }
+            
+            .lamp {
+                width: 120px;
+                height: 120px;
+                font-size: 2em;
+            }
+            
+            .lamp-container {
+                padding: 15px;
+            }
+            
+            .log-container {
+                max-height: 200px;
+                padding: 15px;
+            }
+            
+            .disco-status {
+                padding: 15px;
+            }
+            
+            .disco-status h3 {
+                font-size: 1.3em;
+            }
+            
+            .time-group input {
+                font-size: 1.1em;
+                padding: 12px;
+            }
+            
+            .control-group input, .control-group select {
+                font-size: 1.1em;
+                padding: 12px;
+            }
+            
+            .status-label, .status-value {
+                font-size: 1.1em;
+            }
+            
+            .lamp-status {
+                font-size: 1.2em;
+            }
+            
+            .audio-level {
+                font-size: 1.3em;
+            }
+            
+            .track-title {
+                font-size: 1.2em;
+            }
+            
+            .track-artist {
+                font-size: 1em;
+            }
+            
+            
+            .track-navigation {
+                gap: 12px;
+            }
+            
+            .track-nav-btn {
+                padding: 10px 12px;
+                font-size: 1.2em;
+                min-width: 45px;
+            }
+            
+            .track-status-wrapper {
+                padding: 10px 15px;
+                min-width: 120px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 5px;
+            }
+            
+            .header {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 1.5em;
+            }
+            
+            .card {
+                padding: 10px;
+                border-radius: 15px;
+            }
+            
+            .card h2 {
+                font-size: 1.2em;
+                margin-bottom: 10px;
+            }
+            
+            .days-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+            }
+            
+            .day-checkbox label {
+                padding: 10px 6px;
+                font-size: 0.8em;
+            }
+            
+            .btn {
+                padding: 10px 15px;
+                font-size: 0.9em;
+            }
+            
+            .lamp {
+                width: 100px;
+                height: 100px;
+                font-size: 1.8em;
+            }
+            
+            .lamp-container {
+                padding: 10px;
+            }
+            
+            .log-container {
+                max-height: 150px;
+                padding: 10px;
+            }
+            
+            .status-item {
+                padding: 10px;
+            }
+            
+            .control-group input, .control-group select {
+                padding: 10px;
+                font-size: 1em;
+            }
+            
+            .status-label, .status-value {
+                font-size: 1em;
+            }
+            
+            .lamp-status {
+                font-size: 1.1em;
+            }
+            
+            .audio-level {
+                font-size: 1.2em;
+            }
+            
+            .track-title {
+                font-size: 1.1em;
+            }
+            
+            .track-artist {
+                font-size: 0.9em;
+            }
+            
+            
+            .track-navigation {
+                gap: 8px;
+                flex-direction: row;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .track-nav-btn {
+                padding: 8px 10px;
+                font-size: 1.1em;
+                min-width: 40px;
+            }
+            
+            .track-status-wrapper {
+                padding: 8px 12px;
+                min-width: 100px;
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎵 Дискотека - Панель Управления 🎵</h1>
+        </div>
+
+        <!-- Мобильная лампа (скрыта на десктопе) -->
+        <div class="mobile-lamp-container" style="display: none;">
+            <div class="card">
+                <h2>💡 Мониторинг Звука</h2>
+                <div class="lamp-container">
+                    <div class="lamp gray" id="mobileLamp">
+                        🔇
+                    </div>
+                    <div class="lamp-status" id="mobileLampStatus">Мониторинг остановлен</div>
+                    <div class="audio-level" id="mobileAudioLevel">RMS: 0.000</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Мобильный блок "сейчас играет" (скрыт на десктопе) -->
+        <div class="mobile-current-track-container" style="display: none;">
+            <div class="card">
+                <h2>🎧 Сейчас играет</h2>
+                <div class="current-track-container">
+                    <div class="track-info">
+                        <div class="track-title" id="mobileCurrentTrackTitle">Трек не выбран</div>
+                        <div class="track-artist" id="mobileCurrentTrackArtist"></div>
+                        <div class="track-time" id="mobileCurrentTrackTime"></div>
+                    </div>
+                    <!-- Упрощенное управление треками -->
+                    <div class="track-navigation">
+                        <button class="track-nav-btn" id="mobilePrevTrackBtn" onclick="previousTrack()" title="Предыдущий трек">
+                            ⏮️
+                        </button>
+                        <div class="track-status-wrapper" id="mobileCurrentTrackStatus">
+                            <span class="status-icon">⏹️</span>
+                            <span class="status-text">Остановлено</span>
+                        </div>
+                        <button class="track-nav-btn" id="mobileNextTrackBtn" onclick="nextTrack()" title="Следующий трек">
+                            ⏭️
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="left-panel">
+                <!-- Статус системы -->
+                <div class="card">
+                    <h2>📊 Статус Системы</h2>
+                    <div class="status-grid">
+                        <div class="status-item">
+                            <div class="status-label">Планировщик</div>
+                            <div class="status-value" id="schedulerStatus">Загрузка...</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="status-label">Мониторинг</div>
+                            <div class="status-value" id="monitoringStatus">Загрузка...</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="status-label">Telegram</div>
+                            <div class="status-value" id="telegramStatus">Загрузка...</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="status-label">Дискотека</div>
+                            <div class="status-value" id="discoStatus">Загрузка...</div>
+                        </div>
+                    </div>
+                    <div class="controls-grid">
+                        <button class="btn btn-primary" onclick="toggleScheduler()" id="schedulerBtn">
+                            Переключить Планировщик
+                        </button>
+                        <button class="btn btn-primary" onclick="toggleMonitoring()" id="monitoringBtn">
+                            Переключить Мониторинг
+                        </button>
+                        <button class="btn btn-primary" onclick="toggleTelegram()" id="telegramBtn">
+                            Переключить Telegram
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Расписание -->
+                <div class="card">
+                    <h2>📅 Расписание</h2>
+                    <div class="schedule-section">
+                        <div class="days-grid">
+                            <div class="day-checkbox">
+                                <input type="checkbox" id="day0" value="0">
+                                <label for="day0">Пн</label>
+                            </div>
+                            <div class="day-checkbox">
+                                <input type="checkbox" id="day1" value="1">
+                                <label for="day1">Вт</label>
+                            </div>
+                            <div class="day-checkbox">
+                                <input type="checkbox" id="day2" value="2">
+                                <label for="day2">Ср</label>
+                            </div>
+                            <div class="day-checkbox">
+                                <input type="checkbox" id="day3" value="3">
+                                <label for="day3">Чт</label>
+                            </div>
+                            <div class="day-checkbox">
+                                <input type="checkbox" id="day4" value="4">
+                                <label for="day4">Пт</label>
+                            </div>
+                            <div class="day-checkbox">
+                                <input type="checkbox" id="day5" value="5">
+                                <label for="day5">Сб</label>
+                            </div>
+                            <div class="day-checkbox">
+                                <input type="checkbox" id="day6" value="6">
+                                <label for="day6">Вс</label>
+                            </div>
+                        </div>
+                        <div class="time-inputs">
+                            <div class="time-group">
+                                <label>Время запуска плейлиста:</label>
+                                <input type="time" id="startTime" onchange="saveSettings()">
+                            </div>
+                            <div class="time-group">
+                                <label>Время закрытия VLC:</label>
+                                <input type="time" id="stopTime" onchange="saveSettings()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Настройки мониторинга звука -->
+                <div class="card">
+                    <h2>🎤 Настройки Мониторинга</h2>
+                    <div class="audio-controls">
+                        <div class="control-group">
+                            <label>Порог:</label>
+                            <input type="number" id="audioThreshold" step="0.001" min="0.001" max="1.0" onchange="saveSettings()">
+                        </div>
+                        <div class="control-group">
+                            <label>Тишина (сек):</label>
+                            <input type="number" id="audioSilenceDuration" min="1" max="300" onchange="saveSettings()">
+                        </div>
+                        <div class="control-group">
+                            <label>Звук (сек):</label>
+                            <input type="number" id="audioSoundConfirmationDuration" min="1" max="60" onchange="saveSettings()">
+                        </div>
+                        <div class="control-group">
+                            <label>Буфер RMS:</label>
+                            <input type="number" id="audioBufferSize" min="1" max="50" onchange="saveSettings()">
+                        </div>
+                        <div class="control-group">
+                            <label>Микрофон:</label>
+                            <select id="audioDevice" onchange="saveSettings()">
+                                <option value="">Загрузка устройств...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ручное управление -->
+                <div class="card">
+                    <h2>🎮 Ручное Управление</h2>
+                    <div class="controls-grid">
+                        <button class="btn btn-success" onclick="generatePlaylist()">
+                            🎵 Сгенерировать Плейлист
+                        </button>
+                        <button class="btn btn-success" onclick="launchVLC()">
+                            ▶️ Запустить VLC
+                        </button>
+                        <button class="btn btn-danger" onclick="closeVLC()">
+                            ⏹️ Закрыть VLC
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Журнал событий -->
+                <div class="card">
+                    <h2>📝 Журнал Событий</h2>
+                    <div class="log-container" id="logContainer">
+                        <div class="log-entry">[Загрузка] Инициализация интерфейса...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <!-- Статус дискотеки -->
+                <div class="disco-status">
+                    <h3>🎵 СТАТУС ДИСКОТЕКИ</h3>
+                    <div class="status" id="discoStatusText">⏹️ Дискотека не играет</div>
+                </div>
+
+                <!-- Текущий трек -->
+                <div class="card" id="currentTrackCard">
+                    <h2>🎧 Сейчас играет</h2>
+                    <div class="current-track-container">
+                        <div class="track-info">
+                            <div class="track-title" id="currentTrackTitle">Трек не выбран</div>
+                            <div class="track-artist" id="currentTrackArtist"></div>
+                            <div class="track-time" id="currentTrackTime"></div>
+                        </div>
+                        <!-- Упрощенное управление треками -->
+                        <div class="track-navigation">
+                            <button class="track-nav-btn" id="prevTrackBtn" onclick="previousTrack()" title="Предыдущий трек">
+                                ⏮️
+                            </button>
+                            <div class="track-status-wrapper" id="currentTrackStatus">
+                                <span class="status-icon">⏹️</span>
+                                <span class="status-text">Остановлено</span>
+                            </div>
+                            <button class="track-nav-btn" id="nextTrackBtn" onclick="nextTrack()" title="Следующий трек">
+                                ⏭️
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Лампа мониторинга -->
+                <div class="card">
+                    <h2>💡 Мониторинг Звука</h2>
+                    <div class="lamp-container">
+                        <div class="lamp gray" id="lamp">
+                            🔇
+                        </div>
+                        <div class="lamp-status" id="lampStatus">Мониторинг остановлен</div>
+                        <div class="audio-level" id="audioLevel">RMS: 0.000</div>
+                    </div>
+                </div>
+
+                <!-- Информация о следующем запуске -->
+                <div class="card">
+                    <h2>⏰ Следующий Запуск</h2>
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-size: 1.2em; font-weight: bold; color: #c4b5fd; margin-bottom: 10px;">
+                            Текущее время:
+                        </div>
+                        <div style="font-size: 1.5em; color: #a78bfa; margin-bottom: 20px;" id="currentTime">
+                            Загрузка...
+                        </div>
+                        <div style="font-size: 1.2em; font-weight: bold; color: #c4b5fd; margin-bottom: 10px;">
+                            Следующий запуск:
+                        </div>
+                        <div style="font-size: 1.3em; color: #a78bfa;" id="nextRun">
+                            Загрузка...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Глобальные переменные
+        let currentSettings = {};
+        let audioDevices = [];
+        let updateInterval;
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeInterface();
+            startUpdateLoop();
+        });
+
+
+        // Инициализация интерфейса
+        async function initializeInterface() {
+            try {
+                await loadSettings();
+                await loadAudioDevices();
+                await updateStatus();
+                log('✅ Интерфейс инициализирован');
+            } catch (error) {
+                log('❌ Ошибка инициализации: ' + error.message);
+            }
+        }
+
+        // Загрузка настроек
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                if (response.ok) {
+                    currentSettings = await response.json();
+                    updateSettingsUI();
+                } else {
+                    throw new Error('Ошибка загрузки настроек');
+                }
+            } catch (error) {
+                log('❌ Ошибка загрузки настроек: ' + error.message);
+            }
+        }
+
+        // Обновление UI настроек
+        function updateSettingsUI() {
+            // Дни недели
+            for (let i = 0; i < 7; i++) {
+                const checkbox = document.getElementById(`day${i}`);
+                checkbox.checked = currentSettings.scheduled_days && currentSettings.scheduled_days.includes(i);
+                checkbox.addEventListener('change', saveSettings);
+            }
+
+            // Время запуска и остановки
+            if (currentSettings.start_time) {
+                const startTime = `${currentSettings.start_time.hour.toString().padStart(2, '0')}:${currentSettings.start_time.minute.toString().padStart(2, '0')}`;
+                document.getElementById('startTime').value = startTime;
+            }
+
+            if (currentSettings.stop_time) {
+                const stopTime = `${currentSettings.stop_time.hour.toString().padStart(2, '0')}:${currentSettings.stop_time.minute.toString().padStart(2, '0')}`;
+                document.getElementById('stopTime').value = stopTime;
+            }
+
+            // Настройки мониторинга звука
+            if (currentSettings.audio_threshold !== undefined) {
+                document.getElementById('audioThreshold').value = currentSettings.audio_threshold;
+            }
+            if (currentSettings.audio_silence_duration !== undefined) {
+                document.getElementById('audioSilenceDuration').value = currentSettings.audio_silence_duration;
+            }
+            if (currentSettings.audio_sound_confirmation_duration !== undefined) {
+                document.getElementById('audioSoundConfirmationDuration').value = currentSettings.audio_sound_confirmation_duration;
+            } else {
+                // Значение по умолчанию 5 секунд
+                document.getElementById('audioSoundConfirmationDuration').value = 5;
+            }
+            if (currentSettings.audio_buffer_size !== undefined) {
+                document.getElementById('audioBufferSize').value = currentSettings.audio_buffer_size;
+            }
+            if (currentSettings.audio_device_index !== undefined) {
+                document.getElementById('audioDevice').value = currentSettings.audio_device_index;
+            }
+        }
+
+        // Загрузка аудиоустройств
+        async function loadAudioDevices() {
+            try {
+                const response = await fetch('/api/audio_devices');
+                if (response.ok) {
+                    audioDevices = await response.json();
+                    updateAudioDevicesUI();
+                } else {
+                    throw new Error('Ошибка загрузки аудиоустройств');
+                }
+            } catch (error) {
+                log('❌ Ошибка загрузки аудиоустройств: ' + error.message);
+            }
+        }
+
+        // Обновление UI аудиоустройств
+        function updateAudioDevicesUI() {
+            const select = document.getElementById('audioDevice');
+            select.innerHTML = '';
+            
+            audioDevices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.index;
+                option.textContent = `${device.name} (каналов: ${device.channels})`;
+                select.appendChild(option);
+            });
+
+            if (currentSettings.audio_device_index !== undefined) {
+                select.value = currentSettings.audio_device_index;
+            }
+        }
+
+        // Сохранение настроек
+        async function saveSettings() {
+            try {
+                const settings = {
+                    scheduled_days: Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(cb => parseInt(cb.value)),
+                    start_time: {
+                        hour: parseInt(document.getElementById('startTime').value.split(':')[0]),
+                        minute: parseInt(document.getElementById('startTime').value.split(':')[1])
+                    },
+                    stop_time: {
+                        hour: parseInt(document.getElementById('stopTime').value.split(':')[0]),
+                        minute: parseInt(document.getElementById('stopTime').value.split(':')[1])
+                    },
+                    audio_threshold: parseFloat(document.getElementById('audioThreshold').value),
+                    audio_silence_duration: parseInt(document.getElementById('audioSilenceDuration').value),
+                    audio_sound_confirmation_duration: parseInt(document.getElementById('audioSoundConfirmationDuration').value),
+                    audio_buffer_size: parseInt(document.getElementById('audioBufferSize').value),
+                    audio_device_index: parseInt(document.getElementById('audioDevice').value)
+                };
+
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        showNotification('Настройки сохранены', 'success');
+                        log('💾 Настройки сохранены');
+                    } else {
+                        throw new Error(result.message);
+                    }
+                } else {
+                    throw new Error('Ошибка сохранения настроек');
+                }
+            } catch (error) {
+                log('❌ Ошибка сохранения настроек: ' + error.message);
+                showNotification('Ошибка сохранения настроек', 'error');
+            }
+        }
+
+        // Обновление статуса
+        async function updateStatus() {
+            try {
+                // Обновляем статус системы
+                const statusResponse = await fetch('/api/status');
+                if (statusResponse.ok) {
+                    const status = await statusResponse.json();
+                    updateStatusUI(status);
+                }
+
+                // Обновляем статус аудио
+                const audioResponse = await fetch('/api/audio_status');
+                if (audioResponse.ok) {
+                    const audioStatus = await audioResponse.json();
+                    updateAudioStatusUI(audioStatus);
+                }
+
+                // Обновляем статус Telegram
+                const telegramResponse = await fetch('/api/telegram/notifications/status');
+                if (telegramResponse.ok) {
+                    const telegramStatus = await telegramResponse.json();
+                    updateTelegramStatusUI(telegramStatus);
+                }
+
+                // Обновляем информацию о текущем треке
+                const trackResponse = await fetch('/api/current_track');
+                if (trackResponse.ok) {
+                    const trackInfo = await trackResponse.json();
+                    updateCurrentTrackUI(trackInfo);
+                }
+
+            } catch (error) {
+                log('❌ Ошибка обновления статуса: ' + error.message);
+            }
+        }
+
+        // Обновление UI статуса
+        function updateStatusUI(status) {
+            // Статус планировщика
+            const schedulerStatus = document.getElementById('schedulerStatus');
+            const schedulerBtn = document.getElementById('schedulerBtn');
+            if (status.scheduler_enabled) {
+                schedulerStatus.textContent = 'ВКЛЮЧЕН';
+                schedulerStatus.className = 'status-value status-enabled';
+                schedulerBtn.textContent = 'Отключить Планировщик';
+                schedulerBtn.className = 'btn btn-success';
+            } else {
+                schedulerStatus.textContent = 'ОТКЛЮЧЕН';
+                schedulerStatus.className = 'status-value status-disabled';
+                schedulerBtn.textContent = 'Включить Планировщик';
+                schedulerBtn.className = 'btn btn-danger';
+            }
+
+            // Статус дискотеки
+            const discoStatus = document.getElementById('discoStatus');
+            const discoStatusText = document.getElementById('discoStatusText');
+            if (status.disco_is_active) {
+                discoStatus.textContent = 'ИГРАЕТ';
+                discoStatus.className = 'status-value status-enabled';
+                discoStatusText.textContent = '🎵 Дискотека играет';
+                discoStatusText.className = 'status playing';
+            } else {
+                discoStatus.textContent = 'ОСТАНОВЛЕНА';
+                discoStatus.className = 'status-value status-disabled';
+                discoStatusText.textContent = '⏹️ Дискотека не играет';
+                discoStatusText.className = 'status stopped';
+            }
+
+            // Обновляем время
+            document.getElementById('currentTime').textContent = status.current_time;
+            
+            // Обновляем информацию о следующем запуске
+            const nextRunElement = document.getElementById('nextRun');
+            if (status.next_run) {
+                const nextRun = status.next_run;
+                nextRunElement.textContent = `${nextRun.day_name}, ${nextRun.date} в ${nextRun.time}`;
+            } else {
+                nextRunElement.textContent = 'не запланирован';
+            }
+        }
+
+        // Обновление UI статуса аудио
+        function updateAudioStatusUI(audioStatus) {
+            const monitoringStatus = document.getElementById('monitoringStatus');
+            const monitoringBtn = document.getElementById('monitoringBtn');
+            const lamp = document.getElementById('lamp');
+            const lampStatus = document.getElementById('lampStatus');
+            const audioLevel = document.getElementById('audioLevel');
+            
+            // Мобильные элементы
+            const mobileLamp = document.getElementById('mobileLamp');
+            const mobileLampStatus = document.getElementById('mobileLampStatus');
+            const mobileAudioLevel = document.getElementById('mobileAudioLevel');
+
+            // Статус мониторинга
+            if (audioStatus.monitoring_enabled) {
+                monitoringStatus.textContent = 'ВКЛЮЧЕН';
+                monitoringStatus.className = 'status-value status-enabled';
+                monitoringBtn.textContent = 'Отключить Мониторинг';
+                monitoringBtn.className = 'btn btn-success';
+            } else {
+                monitoringStatus.textContent = 'ОТКЛЮЧЕН';
+                monitoringStatus.className = 'status-value status-disabled';
+                monitoringBtn.textContent = 'Включить Мониторинг';
+                monitoringBtn.className = 'btn btn-danger';
+            }
+
+            // Функция обновления лампы
+            function updateLamp(lampEl, statusEl, levelEl) {
+                if (audioStatus.monitoring_active) {
+                    if (audioStatus.lamp_lit) {
+                        lampEl.className = 'lamp red';
+                        lampEl.innerHTML = '🔴';
+                        statusEl.textContent = 'ТИШИНА!';
+                        statusEl.style.color = '#dc3545';
+                    } else {
+                        lampEl.className = 'lamp green';
+                        lampEl.innerHTML = '🟢';
+                        statusEl.textContent = 'Звук обнаружен';
+                        statusEl.style.color = '#28a745';
+                    }
+                    levelEl.textContent = `RMS: ${audioStatus.audio_level.toFixed(6)}`;
+                } else {
+                    lampEl.className = 'lamp gray';
+                    lampEl.innerHTML = '⚫';
+                    statusEl.textContent = 'Мониторинг остановлен';
+                    statusEl.style.color = '#6c757d';
+                    levelEl.textContent = 'RMS: 0.000';
+                }
+            }
+            
+            // Обновляем обе лампы
+            updateLamp(lamp, lampStatus, audioLevel);
+            if (mobileLamp) {
+                updateLamp(mobileLamp, mobileLampStatus, mobileAudioLevel);
+            }
+        }
+
+        // Обновление UI статуса Telegram
+        function updateTelegramStatusUI(telegramStatus) {
+            const telegramStatusEl = document.getElementById('telegramStatus');
+            const telegramBtn = document.getElementById('telegramBtn');
+
+            if (telegramStatus.bot_enabled) {
+                if (telegramStatus.notifications_enabled) {
+                    telegramStatusEl.textContent = 'ВКЛЮЧЕНЫ';
+                    telegramStatusEl.className = 'status-value status-enabled';
+                    telegramBtn.textContent = 'Отключить Telegram';
+                    telegramBtn.className = 'btn btn-success';
+                } else {
+                    telegramStatusEl.textContent = 'ОТКЛЮЧЕНЫ';
+                    telegramStatusEl.className = 'status-value status-disabled';
+                    telegramBtn.textContent = 'Включить Telegram';
+                    telegramBtn.className = 'btn btn-danger';
+                }
+            } else {
+                telegramStatusEl.textContent = 'НЕ АКТИВИРОВАН';
+                telegramStatusEl.className = 'status-value status-disabled';
+                telegramBtn.textContent = 'Telegram недоступен';
+                telegramBtn.className = 'btn btn-warning';
+            }
+        }
+
+        // Обновление UI текущего трека
+        function updateCurrentTrackUI(trackInfo) {
+            // Обновляем десктопные элементы
+            updateTrackElements('currentTrackTitle', 'currentTrackArtist', 'currentTrackTime', 'currentTrackStatus', trackInfo);
+            
+            // Обновляем мобильные элементы
+            updateTrackElements('mobileCurrentTrackTitle', 'mobileCurrentTrackArtist', 'mobileCurrentTrackTime', 'mobileCurrentTrackStatus', trackInfo);
+            
+            // Обновляем состояние кнопок навигации по трекам
+            updateTrackControlsState(trackInfo);
+        }
+
+        // Вспомогательная функция для обновления элементов трека
+        function updateTrackElements(titleId, artistId, timeId, statusId, trackInfo) {
+            const titleElement = document.getElementById(titleId);
+            const artistElement = document.getElementById(artistId);
+            const timeElement = document.getElementById(timeId);
+            const statusElement = document.getElementById(statusId);
+            
+            if (!titleElement || !artistElement || !timeElement || !statusElement) return;
+            
+            const statusIcon = statusElement.querySelector('.status-icon');
+            const statusText = statusElement.querySelector('.status-text');
+
+            if (trackInfo.is_available) {
+                // Обновляем информацию о треке
+                titleElement.textContent = trackInfo.title || 'Неизвестный трек';
+                artistElement.textContent = trackInfo.artist || '';
+                timeElement.textContent = trackInfo.time_str || '';
+                
+                // Обновляем статус воспроизведения
+                if (trackInfo.is_playing) {
+                    statusIcon.textContent = '▶️';
+                    statusText.textContent = 'Играет';
+                    statusElement.className = 'track-status-wrapper playing';
+                } else {
+                    statusIcon.textContent = '⏸️';
+                    statusText.textContent = 'Пауза';
+                    statusElement.className = 'track-status-wrapper';
+                }
+                
+                // Показываем артиста только если он есть
+                if (trackInfo.artist) {
+                    artistElement.style.display = 'block';
+                } else {
+                    artistElement.style.display = 'none';
+                }
+                
+                // Показываем время только если оно есть
+                if (trackInfo.time_str) {
+                    timeElement.style.display = 'block';
+                } else {
+                    timeElement.style.display = 'none';
+                }
+            } else {
+                // Информация недоступна
+                titleElement.textContent = trackInfo.title || 'Информация недоступна';
+                artistElement.textContent = '';
+                artistElement.style.display = 'none';
+                timeElement.textContent = '';
+                timeElement.style.display = 'none';
+                
+                statusIcon.textContent = '⏹️';
+                statusText.textContent = trackInfo.reason || 'Остановлено';
+                statusElement.className = 'track-status-wrapper';
+            }
+        }
+
+        // Управление треками
+        async function nextTrack() {
+            try {
+                const response = await fetch('/api/track/next', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('⏭️ Следующий трек', 'success');
+                    log('⏭️ Переключен на следующий трек');
+                    // Обновляем информацию о треке через короткий промежуток
+                    setTimeout(updateStatus, 500);
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка переключения на следующий трек: ' + error.message);
+                showNotification('Ошибка переключения трека', 'error');
+            }
+        }
+
+        async function previousTrack() {
+            try {
+                const response = await fetch('/api/track/previous', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('⏮️ Предыдущий трек', 'success');
+                    log('⏮️ Переключен на предыдущий трек');
+                    // Обновляем информацию о треке через короткий промежуток
+                    setTimeout(updateStatus, 500);
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка переключения на предыдущий трек: ' + error.message);
+                showNotification('Ошибка переключения трека', 'error');
+            }
+        }
+
+        // Обновление состояния кнопок навигации по трекам
+        function updateTrackControlsState(trackInfo) {
+            // Десктопные кнопки
+            const prevBtn = document.getElementById('prevTrackBtn');
+            const nextBtn = document.getElementById('nextTrackBtn');
+            
+            // Мобильные кнопки
+            const mobilePrevBtn = document.getElementById('mobilePrevTrackBtn');
+            const mobileNextBtn = document.getElementById('mobileNextTrackBtn');
+
+            // Включаем/отключаем кнопки в зависимости от доступности VLC
+            const vlcAvailable = trackInfo && trackInfo.is_available;
+            
+            if (prevBtn) prevBtn.disabled = !vlcAvailable;
+            if (nextBtn) nextBtn.disabled = !vlcAvailable;
+            if (mobilePrevBtn) mobilePrevBtn.disabled = !vlcAvailable;
+            if (mobileNextBtn) mobileNextBtn.disabled = !vlcAvailable;
+        }
+
+        // Переключение планировщика
+        async function toggleScheduler() {
+            try {
+                const response = await fetch('/api/scheduler/toggle', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(`Планировщик ${result.enabled ? 'включен' : 'отключен'}`, 'success');
+                    log(`✅ Планировщик ${result.enabled ? 'включен' : 'отключен'}`);
+                    // Обновляем статус сразу после переключения
+                    await updateStatus();
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка переключения планировщика: ' + error.message);
+                showNotification('Ошибка переключения планировщика', 'error');
+            }
+        }
+
+        // Переключение мониторинга
+        async function toggleMonitoring() {
+            try {
+                const response = await fetch('/api/monitoring/toggle', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(`Мониторинг звука ${result.enabled ? 'включен' : 'отключен'}`, 'success');
+                    log(`✅ Мониторинг звука ${result.enabled ? 'включен' : 'отключен'}`);
+                    // Обновляем статус сразу после переключения
+                    await updateStatus();
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка переключения мониторинга: ' + error.message);
+                showNotification('Ошибка переключения мониторинга', 'error');
+            }
+        }
+
+        // Переключение Telegram
+        async function toggleTelegram() {
+            try {
+                const response = await fetch('/api/telegram/notifications/toggle', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(`Telegram уведомления ${result.enabled ? 'включены' : 'отключены'}`, 'success');
+                    log(`✅ Telegram уведомления ${result.enabled ? 'включены' : 'отключены'}`);
+                    // Обновляем статус сразу после переключения
+                    await updateStatus();
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка переключения Telegram: ' + error.message);
+                showNotification('Ошибка переключения Telegram', 'error');
+            }
+        }
+
+        // Генерация плейлиста
+        async function generatePlaylist() {
+            try {
+                const response = await fetch('/api/generate', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Плейлист сгенерирован', 'success');
+                    log('🎵 Плейлист сгенерирован');
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка генерации плейлиста: ' + error.message);
+                showNotification('Ошибка генерации плейлиста', 'error');
+            }
+        }
+
+        // Запуск VLC
+        async function launchVLC() {
+            try {
+                const response = await fetch('/api/launch', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('VLC запущен', 'success');
+                    log('▶️ VLC запущен');
+                    // Обновляем статус сразу после запуска
+                    await updateStatus();
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка запуска VLC: ' + error.message);
+                showNotification('Ошибка запуска VLC', 'error');
+            }
+        }
+
+        // Закрытие VLC
+        async function closeVLC() {
+            try {
+                const response = await fetch('/api/close', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('VLC закрыт', 'success');
+                    log('⏹️ VLC закрыт');
+                    // Обновляем статус сразу после закрытия
+                    await updateStatus();
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка закрытия VLC: ' + error.message);
+                showNotification('Ошибка закрытия VLC', 'error');
+            }
+        }
+
+        // Логирование
+        function log(message) {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // Показ уведомлений
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Цикл обновления
+        function startUpdateLoop() {
+            updateInterval = setInterval(updateStatus, 2000); // Обновляем каждые 2 секунды
+        }
+
+        // Очистка при закрытии
+        window.addEventListener('beforeunload', function() {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+        });
+    </script>
+</body>
+</html>
