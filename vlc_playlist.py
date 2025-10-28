@@ -62,6 +62,13 @@ class VLCPlaylistLauncher:
                 "vlc.exe",
                 "vlc",
             ]
+        elif platform.system() == "Darwin":  # macOS
+            possible_paths = [
+                "/Applications/VLC.app/Contents/MacOS/VLC",
+                "/usr/local/bin/vlc",
+                "/opt/homebrew/bin/vlc",
+                "vlc",  # Из PATH
+            ]
         else:
             # Пути для Linux (включая Orange Pi)
             possible_paths = [

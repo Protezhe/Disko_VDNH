@@ -271,8 +271,11 @@ class AudioMonitor:
             finally:
                 self.stream = None
             
-        if self.monitor_thread:
-            self.monitor_thread.join()
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            # Ждем завершения потока с таймаутом (1 секунда)
+            self.monitor_thread.join(timeout=1.0)
+            if self.monitor_thread.is_alive():
+                print("[AudioMonitor] Поток мониторинга не завершился, но продолжаем...")
             
         # НЕ вызываем audio.terminate() - оставляем PyAudio активным для перезапуска
         print("Мониторинг остановлен")

@@ -115,6 +115,116 @@ class TelegramNotifier:
         
         return success
     
+    def send_photo(self, image_path, caption=None, parse_mode='HTML'):
+        """
+        Отправка изображения в Telegram с подписью
+        
+        Args:
+            image_path (str): Путь к изображению
+            caption (str): Подпись к фото
+            parse_mode (str): Режим парсинга подписи
+        
+        Returns:
+            bool: True если отправлено хотя бы одному получателю
+        """
+        if not self.enabled:
+            return False
+        if not self.notifications_enabled:
+            print("[Telegram Bot] Уведомления отключены в конфиге")
+            return False
+        if not image_path or not os.path.exists(image_path):
+            print(f"[Telegram Bot] Файл изображения не найден: {image_path}")
+            return False
+        
+        success = False
+        api_url = f"https://api.telegram.org/bot{self.bot_token}/sendPhoto"
+        
+        for chat_id in self.chat_ids:
+            try:
+                with open(image_path, 'rb') as img_file:
+                    files = {'photo': img_file}
+                    data = {'chat_id': chat_id}
+                    if caption:
+                        data['caption'] = caption
+                        data['parse_mode'] = parse_mode
+                    response = requests.post(api_url, data=data, files=files, timeout=20)
+                if response.status_code == 200:
+                    success = True
+                    print(f"[Telegram Bot] Фото отправлено в чат {chat_id}")
+                else:
+                    print(f"[Telegram Bot] Ошибка отправки фото в чат {chat_id}: {response.status_code} - {response.text}")
+            except Exception as e:
+                print(f"[Telegram Bot] Ошибка при отправке фото в чат {chat_id}: {e}")
+        
+        return success
+    
+    def send_media_group(self, image_paths, caption=None, parse_mode='HTML'):
+        """
+        Отправка нескольких изображений одним сообщением (media group)
+        
+        Args:
+            image_paths (list[str]): Пути к изображениям
+            caption (str): Подпись к группе (ставится на первое фото)
+            parse_mode (str): Режим парсинга подписи
+        
+        Returns:
+            bool: True если отправлено хотя бы одному получателю
+        """
+        if not self.enabled:
+            return False
+        if not self.notifications_enabled:
+            print("[Telegram Bot] Уведомления отключены в конфиге")
+            return False
+        
+        # Фильтруем существующие файлы
+        valid_paths = [p for p in (image_paths or []) if p and os.path.exists(p)]
+        if not valid_paths:
+            print("[Telegram Bot] Нет доступных файлов для отправки media group")
+            return False
+        
+        success = False
+        api_url = f"https://api.telegram.org/bot{self.bot_token}/sendMediaGroup"
+        
+        for chat_id in self.chat_ids:
+            files = {}
+            try:
+                media = []
+                for idx, path in enumerate(valid_paths):
+                    file_key = f"photo{idx}"
+                    files[file_key] = open(path, 'rb')
+                    item = {
+                        'type': 'photo',
+                        'media': f"attach://{file_key}"
+                    }
+                    if idx == 0 and caption:
+                        item['caption'] = caption
+                        item['parse_mode'] = parse_mode
+                    media.append(item)
+                data = {
+                    'chat_id': chat_id,
+                    'media': json.dumps(media)
+                }
+                response = requests.post(api_url, data=data, files=files, timeout=30)
+                for f in files.values():
+                    try:
+                        f.close()
+                    except Exception:
+                        pass
+                if response.status_code == 200:
+                    success = True
+                    print(f"[Telegram Bot] Media group отправлена в чат {chat_id}")
+                else:
+                    print(f"[Telegram Bot] Ошибка отправки media group в чат {chat_id}: {response.status_code} - {response.text}")
+            except Exception as e:
+                for f in files.values():
+                    try:
+                        f.close()
+                    except Exception:
+                        pass
+                print(f"[Telegram Bot] Ошибка при отправке media group в чат {chat_id}: {e}")
+        
+        return success
+    
     def notify_disco_started(self):
         """Уведомление о начале дискотеки"""
         now = datetime.now()

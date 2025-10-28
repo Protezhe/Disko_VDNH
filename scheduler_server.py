@@ -18,6 +18,8 @@ from flask_cors import CORS
 from threading import Thread
 
 from scheduler import DiscoScheduler
+from soundcheck import SoundCheck
+from soundcheck_v2 import SoundCheckV2
 from audio_monitor import AudioMonitor, get_audio_devices_list
 
 
@@ -541,6 +543,67 @@ class DiscoServer:
                     return jsonify({'success': False, 'message': 'Ошибка изменения громкости'})
             except Exception as e:
                 return jsonify({'success': False, 'message': str(e)})
+
+        @self.app.route('/api/soundcheck/reference', methods=['POST'])
+        def api_soundcheck_reference():
+            """Запуск эталонного саундчека (создает образец и график)"""
+            try:
+                sc = SoundCheck()
+                ok = sc.run_soundcheck()
+                return jsonify({'success': bool(ok), 'message': 'Эталонный саундчек выполнен' if ok else 'Ошибка выполнения саундчека'})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+
+        @self.app.route('/api/soundcheck', methods=['POST'])
+        def api_soundcheck_run():
+            """Запуск сравнения саундчека и отправка результата в Telegram (если включены уведомления)"""
+            try:
+                sc2 = SoundCheckV2()
+                sc2.run_soundcheck()
+                # Пересчитаем схожесть на всякий случай и подготовим сообщение
+                similarity = sc2.compare_with_previous()
+                similarity = float(similarity) if similarity is not None else None
+                verdict = None
+                if similarity is not None:
+                    if similarity >= 90:
+                        verdict = 'Саундчек — ОК'
+                    else:
+                        verdict = 'Громкость изменилась'
+                # Путь к графику, который генерирует V2
+                image_path_new = os.path.join(get_exe_dir(), 'soundcheck_graph_v2.png')
+                image_path_ref = os.path.join(get_exe_dir(), 'soundcheck_graph.png')
+                # Отправляем в Telegram, если включено
+                sent = False
+                if self.scheduler.telegram_bot and self.scheduler.telegram_bot.enabled and self.scheduler.telegram_bot.notifications_enabled:
+                    caption_lines = []
+                    if verdict:
+                        caption_lines.append(verdict)
+                    if similarity is not None:
+                        caption_lines.append(f"Схожесть: {similarity:.2f}%")
+                    caption = "\n".join(caption_lines) if caption_lines else 'Саундчек'
+                    try:
+                        paths = []
+                        if os.path.exists(image_path_ref):
+                            paths.append(image_path_ref)
+                        if os.path.exists(image_path_new):
+                            paths.append(image_path_new)
+                        if len(paths) >= 2:
+                            sent = self.scheduler.telegram_bot.send_media_group(paths, caption=caption)
+                        elif len(paths) == 1:
+                            sent = self.scheduler.telegram_bot.send_photo(paths[0], caption=caption)
+                        else:
+                            sent = self.scheduler.telegram_bot.send_message(caption)
+                    except Exception as te:
+                        self.log(f"⚠️ Ошибка отправки Telegram сообщения: {te}")
+                return jsonify({
+                    'success': True,
+                    'similarity': similarity,
+                    'verdict': verdict,
+                    'telegram_sent': sent,
+                    'graph_paths': [p for p in [image_path_ref, image_path_new] if os.path.exists(p)]
+                })
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
         
         @self.app.route('/', methods=['GET'])
         def serve_web_interface():
@@ -651,7 +714,9 @@ class DiscoServer:
         if self.audio_monitor:
             self.audio_monitor.cleanup()
         
-        sys.exit(0)
+        # Принудительно завершаем процесс (Flask может держать поток)
+        self.log("✅ Все компоненты остановлены, завершаем процесс...")
+        os._exit(0)
 
 
 def main():
