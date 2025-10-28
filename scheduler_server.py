@@ -12,7 +12,7 @@ import json
 import time
 import signal
 import socket
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from threading import Thread
@@ -54,6 +54,20 @@ class DiscoServer:
     def __init__(self):
         self.config_file = os.path.join(get_exe_dir(), 'scheduler_config.json')
         self.running = True
+        
+        # Флаг автозапуска саундчека и время запуска до старта дискотеки
+        self.soundcheck_schedule_enabled = False
+        self.soundcheck_minutes_before_disco = 30  # по умолчанию 30 минут
+        self.soundcheck_last_trigger_key = None  # защита от повторов на один и тот же запуск
+        try:
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    cfg = json.load(f)
+                    self.soundcheck_schedule_enabled = bool(cfg.get('soundcheck_schedule_enabled', False))
+                    self.soundcheck_minutes_before_disco = int(cfg.get('soundcheck_minutes_before_disco', 30))
+        except Exception as e:
+            # Не критично
+            self.log(f"⚠️ Не удалось прочитать состояние автосаундчека из конфига: {e}")
         
         # Инициализация планировщика
         self.scheduler = DiscoScheduler(config_file=self.config_file, log_callback=self.log)
@@ -174,6 +188,78 @@ class DiscoServer:
             self.log("💾 Настройки аудио мониторинга сохранены в конфиг")
         except Exception as e:
             self.log(f"❌ Ошибка сохранения настроек аудио мониторинга: {e}")
+    
+    def _save_soundcheck_schedule_enabled_to_config(self, enabled):
+        """Сохраняет состояние автосаундчека в конфиг"""
+        try:
+            existing_settings = {}
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    existing_settings = json.load(f)
+            existing_settings['soundcheck_schedule_enabled'] = bool(enabled)
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(existing_settings, f, ensure_ascii=False, indent=2)
+            self.log(f"💾 Авто-саундчек по расписанию: {'включен' if enabled else 'отключен'}")
+        except Exception as e:
+            self.log(f"❌ Ошибка сохранения состояния авто-саундчека: {e}")
+    
+    def _save_soundcheck_minutes_to_config(self, minutes):
+        """Сохраняет количество минут до запуска саундчека в конфиг"""
+        try:
+            existing_settings = {}
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    existing_settings = json.load(f)
+            existing_settings['soundcheck_minutes_before_disco'] = int(minutes)
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(existing_settings, f, ensure_ascii=False, indent=2)
+            self.log(f"💾 Авто-саундчек: за {minutes} минут до дискотеки")
+        except Exception as e:
+            self.log(f"❌ Ошибка сохранения времени авто-саундчека: {e}")
+
+    def run_soundcheck_and_notify(self):
+        """Запуск саундчека V2, расчет схожести и отправка в Telegram при необходимости"""
+        sc2 = SoundCheckV2()
+        sc2.run_soundcheck()
+        similarity = sc2.compare_with_previous()
+        similarity = float(similarity) if similarity is not None else None
+        verdict = None
+        if similarity is not None:
+            if similarity >= 90:
+                verdict = 'Саундчек — ОК'
+            else:
+                verdict = 'Громкость изменилась'
+        image_path_new = os.path.join(get_exe_dir(), 'soundcheck_graph_v2.png')
+        image_path_ref = os.path.join(get_exe_dir(), 'soundcheck_graph.png')
+        sent = False
+        if self.scheduler.telegram_bot and self.scheduler.telegram_bot.enabled and self.scheduler.telegram_bot.notifications_enabled:
+            caption_lines = []
+            if verdict:
+                caption_lines.append(verdict)
+            if similarity is not None:
+                caption_lines.append(f"Схожесть: {similarity:.2f}%")
+            caption = "\n".join(caption_lines) if caption_lines else 'Саундчек'
+            try:
+                paths = []
+                if os.path.exists(image_path_ref):
+                    paths.append(image_path_ref)
+                if os.path.exists(image_path_new):
+                    paths.append(image_path_new)
+                if len(paths) >= 2:
+                    sent = self.scheduler.telegram_bot.send_media_group(paths, caption=caption)
+                elif len(paths) == 1:
+                    sent = self.scheduler.telegram_bot.send_photo(paths[0], caption=caption)
+                else:
+                    sent = self.scheduler.telegram_bot.send_message(caption)
+            except Exception as te:
+                self.log(f"⚠️ Ошибка отправки Telegram сообщения: {te}")
+        return {
+            'success': True,
+            'similarity': similarity,
+            'verdict': verdict,
+            'telegram_sent': sent,
+            'graph_paths': [p for p in [image_path_ref, image_path_new] if os.path.exists(p)]
+        }
     
     def setup_routes(self):
         """Настройка маршрутов API"""
@@ -558,49 +644,59 @@ class DiscoServer:
         def api_soundcheck_run():
             """Запуск сравнения саундчека и отправка результата в Telegram (если включены уведомления)"""
             try:
-                sc2 = SoundCheckV2()
-                sc2.run_soundcheck()
-                # Пересчитаем схожесть на всякий случай и подготовим сообщение
-                similarity = sc2.compare_with_previous()
-                similarity = float(similarity) if similarity is not None else None
-                verdict = None
-                if similarity is not None:
-                    if similarity >= 90:
-                        verdict = 'Саундчек — ОК'
-                    else:
-                        verdict = 'Громкость изменилась'
-                # Путь к графику, который генерирует V2
-                image_path_new = os.path.join(get_exe_dir(), 'soundcheck_graph_v2.png')
-                image_path_ref = os.path.join(get_exe_dir(), 'soundcheck_graph.png')
-                # Отправляем в Telegram, если включено
-                sent = False
-                if self.scheduler.telegram_bot and self.scheduler.telegram_bot.enabled and self.scheduler.telegram_bot.notifications_enabled:
-                    caption_lines = []
-                    if verdict:
-                        caption_lines.append(verdict)
-                    if similarity is not None:
-                        caption_lines.append(f"Схожесть: {similarity:.2f}%")
-                    caption = "\n".join(caption_lines) if caption_lines else 'Саундчек'
+                result = self.run_soundcheck_and_notify()
+                return jsonify(result)
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+
+        @self.app.route('/api/soundcheck/schedule/toggle', methods=['POST'])
+        def toggle_soundcheck_schedule():
+            """Переключение состояния автосаундчека"""
+            try:
+                self.soundcheck_schedule_enabled = not self.soundcheck_schedule_enabled
+                self._save_soundcheck_schedule_enabled_to_config(self.soundcheck_schedule_enabled)
+                status = 'включен' if self.soundcheck_schedule_enabled else 'отключен'
+                self.log(f"🔁 Авто-саундчек {status}")
+                return jsonify({'success': True, 'enabled': self.soundcheck_schedule_enabled})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+        
+        @self.app.route('/api/soundcheck/schedule/minutes', methods=['POST'])
+        def update_soundcheck_minutes():
+            """Обновление количества минут до запуска саундчека"""
+            try:
+                data = request.get_json()
+                minutes = data.get('minutes', 30)
+                
+                # Проверяем диапазон минут
+                if not isinstance(minutes, (int, float)) or minutes < 1 or minutes > 120:
+                    return jsonify({'success': False, 'message': 'Минуты должны быть от 1 до 120'})
+                
+                self.soundcheck_minutes_before_disco = int(minutes)
+                self._save_soundcheck_minutes_to_config(minutes)
+                
+                return jsonify({'success': True, 'minutes': minutes})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+
+        @self.app.route('/api/soundcheck/schedule/status', methods=['GET'])
+        def get_soundcheck_schedule_status():
+            """Статус автосаундчека и ближайшее время срабатывания"""
+            try:
+                next_info = self.scheduler.get_next_run()
+                next_trigger = None
+                if next_info and 'date' in next_info and 'time' in next_info:
                     try:
-                        paths = []
-                        if os.path.exists(image_path_ref):
-                            paths.append(image_path_ref)
-                        if os.path.exists(image_path_new):
-                            paths.append(image_path_new)
-                        if len(paths) >= 2:
-                            sent = self.scheduler.telegram_bot.send_media_group(paths, caption=caption)
-                        elif len(paths) == 1:
-                            sent = self.scheduler.telegram_bot.send_photo(paths[0], caption=caption)
-                        else:
-                            sent = self.scheduler.telegram_bot.send_message(caption)
-                    except Exception as te:
-                        self.log(f"⚠️ Ошибка отправки Telegram сообщения: {te}")
+                        dt = datetime.strptime(f"{next_info['date']} {next_info['time']}", "%d.%m.%Y %H:%M")
+                        trig = dt - timedelta(minutes=self.soundcheck_minutes_before_disco)
+                        next_trigger = trig.strftime("%d.%m.%Y %H:%M")
+                    except Exception:
+                        next_trigger = None
                 return jsonify({
-                    'success': True,
-                    'similarity': similarity,
-                    'verdict': verdict,
-                    'telegram_sent': sent,
-                    'graph_paths': [p for p in [image_path_ref, image_path_new] if os.path.exists(p)]
+                    'enabled': self.soundcheck_schedule_enabled,
+                    'minutes_before_disco': self.soundcheck_minutes_before_disco,
+                    'next_disco': next_info,
+                    'next_trigger': next_trigger
                 })
             except Exception as e:
                 return jsonify({'success': False, 'message': str(e)})
@@ -655,6 +751,32 @@ class DiscoServer:
             try:
                 # Проверяем расписание
                 self.scheduler.check_schedule()
+                
+                # Автоматический саундчек за настроенное количество минут до старта дискотеки
+                if self.soundcheck_schedule_enabled:
+                    next_info = self.scheduler.get_next_run()
+                    if next_info and 'date' in next_info and 'time' in next_info:
+                        try:
+                            next_key = f"{next_info['date']} {next_info['time']}"
+                            dt = datetime.strptime(next_key, "%d.%m.%Y %H:%M")
+                            trigger_dt = dt - timedelta(minutes=self.soundcheck_minutes_before_disco)
+                            now = datetime.now()
+                            # Строго один запуск на одно ближайшее срабатывание
+                            if now >= trigger_dt and (self.soundcheck_last_trigger_key != next_key):
+                                self.log(f"🧪 Авто-саундчек: запускаем проверку за {self.soundcheck_minutes_before_disco} минут до дискотеки")
+                                try:
+                                    self.run_soundcheck_and_notify()
+                                except Exception as se:
+                                    self.log(f"❌ Ошибка автосаундчека: {se}")
+                                # Запомнить, что на этот ближайший запуск проверка уже выполнена
+                                self.soundcheck_last_trigger_key = next_key
+                            # Если ближайшее событие прошло (дальше чем на 1 минуту), сбрасываем ключ при смене ближайшего запуска
+                            if now > dt + timedelta(minutes=1):
+                                # Это позволит при обновлении next_run снова отработать за настроенное время
+                                self.soundcheck_last_trigger_key = None
+                        except Exception as pe:
+                            # Не критично для основного цикла
+                            self.log(f"⚠️ Ошибка расчета времени автосаундчека: {pe}")
                 
                 # Спим секунду
                 time.sleep(1)

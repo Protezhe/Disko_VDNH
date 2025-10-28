@@ -1084,6 +1084,28 @@
                     </div>
                 </div>
 
+                <!-- Саундчек -->
+                <div class="card">
+                    <h2>🎤 Саундчек</h2>
+                    <div class="audio-controls">
+                        <div class="control-group">
+                            <label>Запуск за (минут):</label>
+                            <input type="number" id="soundcheckMinutes" min="1" max="120" value="30" onchange="updateSoundcheckMinutes()">
+                        </div>
+                    </div>
+                    <div class="controls-grid">
+                        <button class="btn btn-warning" onclick="runReferenceSoundcheck()">
+                            📊 Эталонный Саундчек
+                        </button>
+                        <button class="btn btn-primary" onclick="runSoundcheck()">
+                            🔍 Проверить Саундчек
+                        </button>
+                        <button class="btn btn-danger" onclick="toggleSoundcheckSchedule()" id="soundcheckScheduleBtn">
+                            Включить авто-проверку (за 30 мин)
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Журнал событий -->
                 <div class="card">
                     <h2>📝 Журнал Событий</h2>
@@ -1164,6 +1186,7 @@
         let currentSettings = {};
         let audioDevices = [];
         let updateInterval;
+        let lastSoundcheckTriggerTime = null; // для предотвращения повторных логов
 
         // Инициализация
         document.addEventListener('DOMContentLoaded', function() {
@@ -1346,6 +1369,13 @@
                 if (trackResponse.ok) {
                     const trackInfo = await trackResponse.json();
                     updateCurrentTrackUI(trackInfo);
+                }
+
+                // Обновляем статус автосаундчека
+                const scSchedResponse = await fetch('/api/soundcheck/schedule/status');
+                if (scSchedResponse.ok) {
+                    const scSched = await scSchedResponse.json();
+                    updateSoundcheckScheduleUI(scSched);
                 }
 
             } catch (error) {
@@ -1666,6 +1696,85 @@
             }
         }
 
+        // Переключение автосаундчека (за 30 минут до старта)
+        async function toggleSoundcheckSchedule() {
+            try {
+                const response = await fetch('/api/soundcheck/schedule/toggle', { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    showNotification(`Авто-проверка ${result.enabled ? 'включена' : 'отключена'}`, 'success');
+                    log(`🔁 Авто-проверка ${result.enabled ? 'включена' : 'отключена'}`);
+                    await updateStatus();
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка переключения авто-проверки: ' + error.message);
+                showNotification('Ошибка переключения авто-проверки', 'error');
+            }
+        }
+
+        // Обновление UI для автосаундчека
+        function updateSoundcheckScheduleUI(scStatus) {
+            const btn = document.getElementById('soundcheckScheduleBtn');
+            const minutesInput = document.getElementById('soundcheckMinutes');
+            
+            if (!btn) return;
+            
+            // Обновляем поле минут
+            if (minutesInput && scStatus.minutes_before_disco !== undefined) {
+                minutesInput.value = scStatus.minutes_before_disco;
+            }
+            
+            // Обновляем кнопку
+            if (scStatus.enabled) {
+                btn.textContent = `Отключить авто-проверку (за ${scStatus.minutes_before_disco || 30} мин)`;
+                btn.className = 'btn btn-success';
+            } else {
+                btn.textContent = `Включить авто-проверку (за ${scStatus.minutes_before_disco || 30} мин)`;
+                btn.className = 'btn btn-danger';
+            }
+            
+            if (scStatus.next_trigger && scStatus.next_trigger !== lastSoundcheckTriggerTime) {
+                log(`⏰ Ближайший авто-саундчек: ${scStatus.next_trigger}`);
+                lastSoundcheckTriggerTime = scStatus.next_trigger;
+            }
+        }
+
+        // Обновление количества минут до запуска саундчека
+        async function updateSoundcheckMinutes() {
+            try {
+                const minutes = parseInt(document.getElementById('soundcheckMinutes').value);
+                
+                if (isNaN(minutes) || minutes < 1 || minutes > 120) {
+                    showNotification('Минуты должны быть от 1 до 120', 'error');
+                    return;
+                }
+                
+                const response = await fetch('/api/soundcheck/schedule/minutes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ minutes: minutes })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(`Время авто-саундчека: за ${minutes} минут`, 'success');
+                    log(`⏰ Авто-саундчек: за ${minutes} минут до дискотеки`);
+                    // Обновляем статус для обновления текста кнопки
+                    await updateStatus();
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка обновления времени авто-саундчека: ' + error.message);
+                showNotification('Ошибка обновления времени', 'error');
+            }
+        }
+
         // Генерация плейлиста
         async function generatePlaylist() {
             try {
@@ -1721,6 +1830,59 @@
             } catch (error) {
                 log('❌ Ошибка закрытия VLC: ' + error.message);
                 showNotification('Ошибка закрытия VLC', 'error');
+            }
+        }
+
+        // Эталонный саундчек
+        async function runReferenceSoundcheck() {
+            try {
+                showNotification('Запуск эталонного саундчека...', 'warning');
+                log('📊 Запуск эталонного саундчека');
+                
+                const response = await fetch('/api/soundcheck/reference', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Эталонный саундчек выполнен', 'success');
+                    log('✅ Эталонный саундчек выполнен');
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка эталонного саундчека: ' + error.message);
+                showNotification('Ошибка эталонного саундчека', 'error');
+            }
+        }
+
+        // Проверка саундчека
+        async function runSoundcheck() {
+            try {
+                showNotification('Запуск проверки саундчека...', 'warning');
+                log('🔍 Запуск проверки саундчека');
+                
+                const response = await fetch('/api/soundcheck', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    let message = 'Саундчек выполнен';
+                    if (result.verdict) {
+                        message += ` - ${result.verdict}`;
+                    }
+                    if (result.similarity !== null) {
+                        message += ` (схожесть: ${result.similarity.toFixed(2)}%)`;
+                    }
+                    if (result.telegram_sent) {
+                        message += ' - отправлено в Telegram';
+                    }
+                    
+                    showNotification(message, 'success');
+                    log(`✅ Саундчек выполнен: ${result.verdict || 'без вердикта'}, схожесть: ${result.similarity?.toFixed(2) || 'N/A'}%`);
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка проверки саундчека: ' + error.message);
+                showNotification('Ошибка проверки саундчека', 'error');
             }
         }
 
