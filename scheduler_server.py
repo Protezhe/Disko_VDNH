@@ -216,6 +216,20 @@ class DiscoServer:
             self.log(f"💾 Авто-саундчек: за {minutes} минут до дискотеки")
         except Exception as e:
             self.log(f"❌ Ошибка сохранения времени авто-саундчека: {e}")
+    
+    def _save_soundcheck_duration_to_config(self, duration):
+        """Сохраняет длительность саундчека в конфиг"""
+        try:
+            existing_settings = {}
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    existing_settings = json.load(f)
+            existing_settings['soundcheck_duration_seconds'] = int(duration)
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(existing_settings, f, ensure_ascii=False, indent=2)
+            self.log(f"💾 Длительность саундчека: {duration} секунд")
+        except Exception as e:
+            self.log(f"❌ Ошибка сохранения длительности саундчека: {e}")
 
     def run_soundcheck_and_notify(self):
         """Запуск саундчека V2, расчет схожести и отправка в Telegram при необходимости"""
@@ -326,8 +340,19 @@ class DiscoServer:
                     'minute': self.scheduler.stop_time.minute
                 },
                 'playlist_duration_hours': self.scheduler.playlist_duration_hours,
-                'scheduler_enabled': self.scheduler.scheduler_enabled
+                'scheduler_enabled': self.scheduler.scheduler_enabled,
+                'soundcheck_minutes_before_disco': self.soundcheck_minutes_before_disco
             }
+            
+            # Загружаем дополнительные настройки из конфига
+            try:
+                if os.path.exists(self.config_file):
+                    with open(self.config_file, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                        settings['soundcheck_duration_seconds'] = config.get('soundcheck_duration_seconds', 10)
+            except Exception as e:
+                self.log(f"⚠️ Ошибка загрузки настроек саундчека из конфига: {e}")
+                settings['soundcheck_duration_seconds'] = 10
             
             if self.audio_monitor:
                 settings.update({
@@ -676,6 +701,23 @@ class DiscoServer:
                 self._save_soundcheck_minutes_to_config(minutes)
                 
                 return jsonify({'success': True, 'minutes': minutes})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+
+        @self.app.route('/api/soundcheck/duration', methods=['POST'])
+        def update_soundcheck_duration():
+            """Обновление длительности саундчека в секундах"""
+            try:
+                data = request.get_json()
+                duration = data.get('duration', 10)
+                
+                # Проверяем диапазон секунд
+                if not isinstance(duration, (int, float)) or duration < 1 or duration > 60:
+                    return jsonify({'success': False, 'message': 'Длительность должна быть от 1 до 60 секунд'})
+                
+                self._save_soundcheck_duration_to_config(duration)
+                
+                return jsonify({'success': True, 'duration': duration})
             except Exception as e:
                 return jsonify({'success': False, 'message': str(e)})
 

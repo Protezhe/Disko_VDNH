@@ -1092,6 +1092,10 @@
                             <label>Запуск за (минут):</label>
                             <input type="number" id="soundcheckMinutes" min="1" max="120" value="30" onchange="updateSoundcheckMinutes()">
                         </div>
+                        <div class="control-group">
+                            <label>Длительность (секунд):</label>
+                            <input type="number" id="soundcheckDuration" min="1" max="60" value="10" onchange="updateSoundcheckDuration()">
+                        </div>
                     </div>
                     <div class="controls-grid">
                         <button class="btn btn-warning" onclick="runReferenceSoundcheck()">
@@ -1260,6 +1264,14 @@
             }
             if (currentSettings.audio_device_index !== undefined) {
                 document.getElementById('audioDevice').value = currentSettings.audio_device_index;
+            }
+            
+            // Настройки саундчека
+            if (currentSettings.soundcheck_minutes_before_disco !== undefined) {
+                document.getElementById('soundcheckMinutes').value = currentSettings.soundcheck_minutes_before_disco;
+            }
+            if (currentSettings.soundcheck_duration_seconds !== undefined) {
+                document.getElementById('soundcheckDuration').value = currentSettings.soundcheck_duration_seconds;
             }
         }
 
@@ -1772,6 +1784,38 @@
             } catch (error) {
                 log('❌ Ошибка обновления времени авто-саундчека: ' + error.message);
                 showNotification('Ошибка обновления времени', 'error');
+            }
+        }
+
+        // Обновление длительности саундчека
+        async function updateSoundcheckDuration() {
+            try {
+                const duration = parseInt(document.getElementById('soundcheckDuration').value);
+                
+                if (isNaN(duration) || duration < 1 || duration > 60) {
+                    showNotification('Длительность должна быть от 1 до 60 секунд', 'error');
+                    return;
+                }
+                
+                const response = await fetch('/api/soundcheck/duration', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ duration: duration })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(`Длительность саундчека: ${duration} секунд`, 'success');
+                    log(`⏱️ Длительность саундчека: ${duration} секунд`);
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка обновления длительности саундчека: ' + error.message);
+                showNotification('Ошибка обновления длительности', 'error');
             }
         }
 

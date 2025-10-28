@@ -55,8 +55,8 @@ class SoundCheckV2:
         self.vlc_launcher = VLCPlaylistLauncher()
         self.audio_monitor = audio_monitor  # Используем переданный экземпляр или None
         
-        # Настройки (можно легко редактировать)
-        self.delay_before_close = 10  # секунд до закрытия VLC
+        # Загружаем настройки из конфига
+        self._load_config()
         
         # Данные для графика
         self.soundcheck_data = {
@@ -68,6 +68,25 @@ class SoundCheckV2:
         
         # Предыдущие данные для сравнения
         self.previous_data = None
+    
+    def _load_config(self):
+        """Загружает настройки из конфигурационного файла"""
+        try:
+            if self.config_file.exists():
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                
+                # Загружаем длительность саундчека из конфига
+                self.delay_before_close = config.get('soundcheck_duration_seconds', 10)
+                self.log(f"✓ Загружена длительность саундчека: {self.delay_before_close} секунд")
+            else:
+                # Значения по умолчанию если конфиг не найден
+                self.delay_before_close = 10
+                self.log("⚠ Конфиг не найден, используется длительность по умолчанию: 10 секунд")
+        except Exception as e:
+            # Значения по умолчанию при ошибке загрузки
+            self.delay_before_close = 10
+            self.log(f"⚠ Ошибка загрузки конфига: {e}, используется длительность по умолчанию: 10 секунд")
         
     def log(self, message):
         """Логирование"""
