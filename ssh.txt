@@ -5,6 +5,14 @@ ssh orangepi@192.168.50.203
 cd ~/disco_server
 bash start_server.sh
 
+python3 -m venv venv
+source venv/bin/activate
+
+sudo openvpn --config Disco.conf
+
+
+
+
 C:\Users\Alf\PycharmProjects\Disko_VDNH\web_interface.html
 
 scp "C:\Users\Alf\PycharmProjects\Disko_VDNH\*.py" orangepi@192.168.50.203:~/disco_server/
@@ -14,3 +22,9 @@ scp "C:\Users\Alf\PycharmProjects\Disko_VDNH\web_interface.html" "C:\Users\Alf\P
 scp -r "C:\Users\Alf\PycharmProjects\Disko_VDNH\mp3" orangepi@192.168.50.203:~/disco_server/
 
 scp orangepi@192.168.50.203:/home/orangepi/disco_server/start_server.sh C:\Users\Alf\Downloads\
+
+git clone https://github.com/Protezhe/Disko_VDNH.git
+git pull https://github.com/Protezhe/Disko_VDNH.git
+
+scp *.py orangepi@192.168.50.203:~/disco_server/
+|-]yMQp9.k|rtByx

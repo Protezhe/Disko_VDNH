@@ -219,7 +219,7 @@ class DiscoServer:
 
     def run_soundcheck_and_notify(self):
         """Запуск саундчека V2, расчет схожести и отправка в Telegram при необходимости"""
-        sc2 = SoundCheckV2()
+        sc2 = SoundCheckV2(audio_monitor=self.audio_monitor)
         sc2.run_soundcheck()
         similarity = sc2.compare_with_previous()
         similarity = float(similarity) if similarity is not None else None
@@ -634,7 +634,7 @@ class DiscoServer:
         def api_soundcheck_reference():
             """Запуск эталонного саундчека (создает образец и график)"""
             try:
-                sc = SoundCheck()
+                sc = SoundCheck(audio_monitor=self.audio_monitor)
                 ok = sc.run_soundcheck()
                 return jsonify({'success': bool(ok), 'message': 'Эталонный саундчек выполнен' if ok else 'Ошибка выполнения саундчека'})
             except Exception as e:

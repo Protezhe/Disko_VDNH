@@ -34,8 +34,13 @@ def get_exe_dir():
 class SoundCheck:
     """Класс для запуска саундчека"""
     
-    def __init__(self):
-        """Инициализация"""
+    def __init__(self, audio_monitor=None):
+        """
+        Инициализация
+        
+        Args:
+            audio_monitor (AudioMonitor, optional): Существующий экземпляр AudioMonitor для переиспользования
+        """
         self.project_root = Path(get_exe_dir())
         self.config_file = self.project_root / 'scheduler_config.json'
         
@@ -44,7 +49,7 @@ class SoundCheck:
         
         # Инициализация компонентов
         self.vlc_launcher = VLCPlaylistLauncher()
-        self.audio_monitor = None
+        self.audio_monitor = audio_monitor  # Используем переданный экземпляр или None
         
         # Настройки (можно легко редактировать)
         self.delay_before_close = 10  # секунд до закрытия VLC
@@ -257,7 +262,10 @@ class SoundCheck:
         # Шаг 2: Останавливаем аудио мониторинг (если включен)
         self.log("Шаг 2/5: Останавливаю аудио мониторинг...")
         try:
-            self.audio_monitor = AudioMonitor(config_file=str(self.config_file))
+            # Создаем новый экземпляр AudioMonitor только если нужно
+            if not self.audio_monitor:
+                self.audio_monitor = AudioMonitor(config_file=str(self.config_file))
+            
             if self.audio_monitor.is_monitoring:
                 self.audio_monitor.stop_monitoring()
                 self.log("✓ Мониторинг остановлен")

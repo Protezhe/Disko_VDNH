@@ -165,34 +165,132 @@ class AudioMonitor:
             }
         ]
         
+        # Если указано конкретное устройство, пробуем его сначала
+        if self.device_index is not None:
+            print(f"[AudioMonitor] Используется устройство с индексом: {self.device_index}")
+            # Проверяем доступность устройства
+            try:
+                device_info = self.audio.get_device_info_by_index(self.device_index)
+                print(f"[AudioMonitor] Устройство: {device_info['name']}")
+                print(f"[AudioMonitor] Максимум входных каналов: {device_info['maxInputChannels']}")
+                if device_info['maxInputChannels'] == 0:
+                    print(f"[AudioMonitor] ⚠ Устройство не поддерживает ввод!")
+            except Exception as e:
+                print(f"[AudioMonitor] ⚠ Ошибка получения информации об устройстве: {e}")
+        else:
+            print(f"[AudioMonitor] Устройство не указано, будет использовано по умолчанию")
+        
+        # Выводим список доступных устройств для диагностики
+        print("[AudioMonitor] Доступные аудиоустройства:")
+        try:
+            for i in range(self.audio.get_device_count()):
+                device_info = self.audio.get_device_info_by_index(i)
+                if device_info['maxInputChannels'] > 0:
+                    print(f"  {i}: {device_info['name']} (входов: {device_info['maxInputChannels']})")
+        except Exception as e:
+            print(f"[AudioMonitor] ⚠ Ошибка получения списка устройств: {e}")
+        
+        # Дополнительная диагностика для Linux
+        import platform
+        if platform.system() == "Linux":
+            print("[AudioMonitor] Дополнительная диагностика для Linux:")
+            try:
+                import subprocess
+                # Проверяем процессы, использующие аудио
+                result = subprocess.run(['lsof', '/dev/snd/*'], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0 and result.stdout.strip():
+                    print("[AudioMonitor] Процессы, использующие аудио:")
+                    for line in result.stdout.strip().split('\n')[:5]:  # Показываем только первые 5
+                        print(f"  {line}")
+                else:
+                    print("[AudioMonitor] Нет активных процессов, использующих аудио")
+            except Exception as diag_error:
+                print(f"[AudioMonitor] Ошибка диагностики: {diag_error}")
+        
         for i, config in enumerate(configs_to_try):
             try:
                 print(f"[AudioMonitor] Попытка {i+1}/4: {config['format']}, {config['rate']}Hz, буфер={config['frames_per_buffer']}")
                 
-                # Проверяем поддержку формата
-                is_supported = self.audio.is_format_supported(
-                    rate=config['rate'],
-                    input_device=self.device_index,
-                    input_channels=config['channels'],
-                    input_format=config['format']
-                )
-                
-                if not is_supported:
-                    print(f"[AudioMonitor] Формат не поддерживается устройством")
-                    continue
+                # Проверяем поддержку формата (пропускаем если устройство недоступно)
+                try:
+                    is_supported = self.audio.is_format_supported(
+                        rate=config['rate'],
+                        input_device=self.device_index,
+                        input_channels=config['channels'],
+                        input_format=config['format']
+                    )
+                    
+                    if not is_supported:
+                        print(f"[AudioMonitor] Формат не поддерживается устройством")
+                        continue
+                except Exception as format_error:
+                    print(f"[AudioMonitor] Ошибка проверки формата: {format_error}")
+                    # Продолжаем попытку открытия потока
                 
                 # Открытие аудиопотока с дополнительными параметрами для ALSA
-                self.stream = self.audio.open(
-                    format=config['format'],
-                    channels=config['channels'],
-                    rate=config['rate'],
-                    input=True,
-                    input_device_index=self.device_index,
-                    frames_per_buffer=config['frames_per_buffer'],
-                    # Дополнительные параметры для стабильности ALSA
-                    start=False,  # Не начинаем сразу
-                    stream_callback=None
-                )
+                try:
+                    self.stream = self.audio.open(
+                        format=config['format'],
+                        channels=config['channels'],
+                        rate=config['rate'],
+                        input=True,
+                        input_device_index=self.device_index,
+                        frames_per_buffer=config['frames_per_buffer'],
+                        # Дополнительные параметры для стабильности ALSA
+                        start=False,  # Не начинаем сразу
+                        stream_callback=None
+                    )
+                except Exception as alsa_error:
+                    # Если ALSA ошибка, пробуем разные варианты
+                    if "Device unavailable" in str(alsa_error) or "ALSA" in str(alsa_error) or "-9985" in str(alsa_error):
+                        print(f"[AudioMonitor] ALSA ошибка с устройством {self.device_index}, пробуем альтернативы...")
+                        
+                        # Попытка 1: Без указания устройства
+                        try:
+                            print(f"[AudioMonitor] Попытка без указания устройства...")
+                            self.stream = self.audio.open(
+                                format=config['format'],
+                                channels=config['channels'],
+                                rate=config['rate'],
+                                input=True,
+                                input_device_index=None,  # Используем устройство по умолчанию
+                                frames_per_buffer=config['frames_per_buffer'],
+                                start=False,
+                                stream_callback=None
+                            )
+                        except Exception as fallback_error:
+                            # Попытка 2: С устройством по умолчанию (индекс 0)
+                            try:
+                                print(f"[AudioMonitor] Попытка с устройством по умолчанию (индекс 0)...")
+                                self.stream = self.audio.open(
+                                    format=config['format'],
+                                    channels=config['channels'],
+                                    rate=config['rate'],
+                                    input=True,
+                                    input_device_index=0,  # Первое доступное устройство
+                                    frames_per_buffer=config['frames_per_buffer'],
+                                    start=False,
+                                    stream_callback=None
+                                )
+                            except Exception as fallback2_error:
+                                # Попытка 3: С pulse устройством
+                                try:
+                                    print(f"[AudioMonitor] Попытка с pulse устройством...")
+                                    self.stream = self.audio.open(
+                                        format=config['format'],
+                                        channels=config['channels'],
+                                        rate=config['rate'],
+                                        input=True,
+                                        input_device_index=6,  # pulse устройство (из списка)
+                                        frames_per_buffer=config['frames_per_buffer'],
+                                        start=False,
+                                        stream_callback=None
+                                    )
+                                except Exception as fallback3_error:
+                                    print(f"[AudioMonitor] Все попытки fallback не удались: {fallback3_error}")
+                                    raise alsa_error
+                    else:
+                        raise alsa_error
                 
                 # Запускаем поток вручную для лучшего контроля
                 self.stream.start_stream()
