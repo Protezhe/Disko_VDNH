@@ -272,17 +272,40 @@ class DiscoScheduler:
         
         return result
     
+    def calculate_disco_duration_hours(self):
+        """
+        Вычисляет длительность дискотеки в часах на основе start_time и stop_time.
+        
+        Returns:
+            float: Длительность в часах
+        """
+        start_datetime = datetime.combine(datetime.now().date(), self.start_time)
+        stop_datetime = datetime.combine(datetime.now().date(), self.stop_time)
+        
+        # Если stop_time меньше start_time, значит дискотека работает через полночь
+        if self.stop_time < self.start_time:
+            stop_datetime += timedelta(days=1)
+        
+        duration = stop_datetime - start_datetime
+        duration_hours = duration.total_seconds() / 3600.0
+        
+        return duration_hours
+    
     def generate_and_launch(self):
         """Генерирует плейлист и запускает VLC."""
         try:
             self.log('Начинаю генерацию плейлиста...')
+            
+            # Вычисляем длительность дискотеки из расписания
+            disco_duration_hours = self.calculate_disco_duration_hours()
+            self.log(f'Длительность дискотеки: {disco_duration_hours:.3f} часов ({int(disco_duration_hours)}ч {int((disco_duration_hours % 1) * 60)}м)')
             
             # Генерируем плейлист
             generator = PlaylistGenerator(
                 music_folder=os.path.join(get_exe_dir(), 'mp3'),
                 config_file=get_resource_path('config.txt')
             )
-            playlist = generator.create_playlist(self.playlist_duration_hours)
+            playlist = generator.create_playlist(disco_duration_hours)
             
             if not playlist:
                 self.log('❌ Ошибка: плейлист пуст')

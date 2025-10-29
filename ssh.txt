@@ -27,4 +27,5 @@ git clone https://github.com/Protezhe/Disko_VDNH.git
 git pull https://github.com/Protezhe/Disko_VDNH.git
 
 scp *.py orangepi@192.168.50.203:~/disco_server/
+scp *.html orangepi@192.168.50.203:~/disco_server/
 |-]yMQp9.k|rtByx
