@@ -9,7 +9,8 @@ import requests
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
+from mutagen.mp3 import MP3
 
 
 def get_exe_dir():
@@ -225,15 +226,85 @@ class TelegramNotifier:
         
         return success
     
-    def notify_disco_started(self):
-        """Уведомление о начале дискотеки"""
+    def notify_disco_started(self, playlist=None, start_time=None):
+        """
+        Уведомление о начале дискотеки
+        
+        Args:
+            playlist (list): Список путей к трекам плейлиста
+            start_time (datetime.time): Время начала дискотеки
+        """
         now = datetime.now()
-        message = (
-            f"🎉 <b>Дискотека началась!</b>\n\n"
-            f"⏰ Время: {now.strftime('%d.%m.%Y %H:%M')}\n"
+        message_lines = [
+            f"🎉 <b>Дискотека началась!</b>\n",
+            f"⏰ Время: {now.strftime('%d.%m.%Y %H:%M')}\n",
             f"🎵 Музыка запущена"
-        )
-        return self.send_message(message)
+        ]
+        
+        # Отправляем основное сообщение
+        base_message = "\n".join(message_lines)
+        success = self.send_message(base_message)
+        
+        # Добавляем плейлист отдельным сообщением, если он передан
+        if playlist and len(playlist) > 0:
+            print(f"[Telegram Bot] Отправка плейлиста: {len(playlist)} треков")
+            playlist_lines = []
+            playlist_lines.append("📋 <b>Плейлист на сегодня:</b>\n")
+            
+            # Максимальная длина сообщения Telegram (с запасом)
+            max_message_length = 4000
+            
+            # Вычисляем время начала для каждого трека
+            current_time = None
+            if start_time:
+                # Используем время начала дискотеки
+                today = datetime.now().date()
+                current_time = datetime.combine(today, start_time)
+            else:
+                # Если время начала не передано, используем текущее время
+                current_time = now
+            
+            for track_path in playlist:
+                # Получаем длительность трека
+                track_duration = 0
+                try:
+                    audio = MP3(track_path)
+                    track_duration = int(audio.info.length)
+                except Exception as e:
+                    print(f"[Telegram Bot] Ошибка получения длительности трека {track_path}: {e}")
+                    # Используем среднюю длительность 3 минуты, если не удалось получить
+                    track_duration = 180
+                
+                # Форматируем время начала трека (только часы:минуты)
+                time_str = current_time.strftime('%H:%M')
+                
+                # Получаем имя файла без расширения
+                track_name = os.path.splitext(os.path.basename(track_path))[0]
+                track_line = f"{time_str} - {track_name}\n"
+                
+                # Проверяем, нужно ли отправить текущую часть и начать новую
+                current_length = len("\n".join(playlist_lines))
+                if current_length + len(track_line) > max_message_length and len(playlist_lines) > 1:
+                    # Отправляем текущую часть
+                    playlist_message = "".join(playlist_lines).rstrip()
+                    self.send_message(playlist_message)
+                    
+                    # Начинаем новую часть
+                    playlist_lines = []
+                    playlist_lines.append(f"📋 <b>Плейлист (продолжение):</b>\n")
+                
+                playlist_lines.append(track_line)
+                
+                # Обновляем время для следующего трека
+                current_time += timedelta(seconds=track_duration)
+            
+            # Отправляем оставшуюся часть
+            if len(playlist_lines) > 1:  # Больше чем просто заголовок
+                playlist_message = "".join(playlist_lines).rstrip()
+                self.send_message(playlist_message)
+                success = True
+        
+        return success
     
     def notify_disco_stopped(self):
         """Уведомление о завершении дискотеки"""

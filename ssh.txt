@@ -1,6 +1,6 @@
 scp "C:\Users\Alf\PycharmProjects\Disko_VDNH\web_interface.html" orangepi@192.168.50.203:~/disco_server/
 
-ssh orangepi@192.168.50.203
+ssh orangepi@10.8.0.9
 |-]yMQp9.k|rtByx
 cd ~/disco_server
 bash start_server.sh
