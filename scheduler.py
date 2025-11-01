@@ -20,8 +20,9 @@ def get_resource_path(relative_path):
         # PyInstaller создает временную папку и устанавливает путь в _MEIPASS
         base_path = sys._MEIPASS
     except Exception:
-        # В режиме разработки используем текущую директорию
-        base_path = os.path.abspath(".")
+        # В режиме разработки используем директорию исполняемого файла/скрипта,
+        # а не текущую рабочую директорию, чтобы поведение было одинаковым на всех ОС
+        base_path = get_exe_dir()
     
     return os.path.join(base_path, relative_path)
 
