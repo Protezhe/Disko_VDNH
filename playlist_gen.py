@@ -31,7 +31,12 @@ class PlaylistGenerator:
         """Возвращает список всех треков в указанной папке."""
         try:
             if os.path.exists(folder_path):
-                return [os.path.join(folder_path, track) for track in os.listdir(folder_path) if track.endswith('.mp3')]
+                # Фильтруем служебные файлы macOS (._) и скрытые файлы
+                return [
+                    os.path.join(folder_path, track) 
+                    for track in os.listdir(folder_path) 
+                    if track.endswith('.mp3') and not track.startswith('._') and not track.startswith('.')
+                ]
             else:
                 print(f"Папка не найдена: {folder_path}")
                 return []
