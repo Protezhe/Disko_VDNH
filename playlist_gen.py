@@ -39,7 +39,7 @@ class PlaylistGenerator:
             print(f"Ошибка при получении треков из папки {folder_path}: {e}")
             return []
     
-    def create_playlist(self, duration_hours):
+    def create_playlist(self, duration_hours, debug=False):
         """
         Создает плейлист с указанной длительностью в часах.
         
@@ -50,6 +50,8 @@ class PlaylistGenerator:
             list: Список треков в плейлисте
         """
         config = self.read_config()
+        if debug:
+            print(f"Начинаю генерацию плейлиста на {duration_hours} ч")
         max_duration = duration_hours * 60 * 60  # Переводим часы в секунды
         
         self.playlist = []
@@ -76,10 +78,16 @@ class PlaylistGenerator:
                         continue
                     
                     if total_duration + track_length > max_duration:
+                        if debug:
+                            print("Достигнута требуемая длительность. Завершение генерации.")
                         return self.playlist
                     
                     self.playlist.append(track)
                     total_duration += track_length
+                    if debug:
+                        minutes = track_length // 60
+                        seconds = track_length % 60
+                        print(f"Добавлен: [{folder}] {os.path.basename(track)} ({minutes:02d}:{seconds:02d})")
         
         return self.playlist
     
@@ -185,6 +193,6 @@ class PlaylistGenerator:
 if __name__ == '__main__':
     # Демонстрация работы класса
     generator = PlaylistGenerator()
-    playlist = generator.create_playlist(3)  # 3 часа
+    playlist = generator.create_playlist(3, debug=True)  # 3 часа
     generator.save_playlist()
     print(f"Информация о плейлисте: {generator.get_playlist_info()}")
