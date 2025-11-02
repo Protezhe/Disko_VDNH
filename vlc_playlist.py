@@ -238,11 +238,23 @@ class VLCPlaylistLauncher:
             print(f"Запуск VLC с плейлистом: {os.path.basename(playlist_path)}")
             print(f"Команда: {' '.join(cmd)}")
             
-            subprocess.Popen(cmd, 
-                           stdout=subprocess.DEVNULL, 
-                           stderr=subprocess.DEVNULL)
+            # Запускаем VLC как независимый процесс, который продолжит работать после закрытия скрипта
+            import platform
+            if platform.system() == "Windows":
+                # Windows: используем DETACHED_PROCESS
+                DETACHED_PROCESS = 0x00000008
+                subprocess.Popen(cmd, 
+                               stdout=subprocess.DEVNULL, 
+                               stderr=subprocess.DEVNULL,
+                               creationflags=DETACHED_PROCESS)
+            else:
+                # Unix/Linux/macOS: используем start_new_session
+                subprocess.Popen(cmd, 
+                               stdout=subprocess.DEVNULL, 
+                               stderr=subprocess.DEVNULL,
+                               start_new_session=True)
             
-            print("VLC успешно запущен!")
+            print("VLC успешно запущен как независимый процесс!")
             return True
             
         except Exception as e:
