@@ -7,9 +7,12 @@ ENV/
 
 # MP3 files
 mp3/
+mp3_normalized/
+mp3_processed.json
 
 # Config file
 scheduler_config.json
+Disco.ovpn
 
 # Python cache
 __pycache__/
