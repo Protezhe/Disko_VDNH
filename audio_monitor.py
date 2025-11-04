@@ -71,6 +71,14 @@ class AudioMonitor:
         self.buffer_size = buffer_size if buffer_size is not None else config.get('audio_buffer_size', 10)
         self.sound_confirmation_duration = sound_confirmation_duration if sound_confirmation_duration is not None else config.get('audio_sound_confirmation_duration', 5)
         
+        # Логируем загруженные параметры
+        print(f"[AudioMonitor] Инициализация с параметрами:")
+        print(f"[AudioMonitor]   - Порог звука: {self.threshold}")
+        print(f"[AudioMonitor]   - Длительность тишины: {self.silence_duration}с")
+        print(f"[AudioMonitor]   - Подтверждение звука: {self.sound_confirmation_duration}с")
+        print(f"[AudioMonitor]   - Размер буфера: {self.buffer_size}")
+        print(f"[AudioMonitor]   - Устройство: {self.device_index if self.device_index is not None else 'по умолчанию'}")
+        
         self.sample_rate = sample_rate
         self.chunk_size = chunk_size
         
@@ -85,6 +93,7 @@ class AudioMonitor:
         self.silence_start_time = None
         self.is_monitoring = False
         self.monitor_thread = None
+        self.silence_warning_sent = False  # Флаг отправки предупреждения о тишине
         
         # Переменные для отслеживания длительности звука
         self.sound_start_time = None
@@ -334,6 +343,7 @@ class AudioMonitor:
         self.silence_start_time = None
         self.sound_start_time = None
         self.sound_confirmed = False
+        self.silence_warning_sent = False
         self.monitor_thread = threading.Thread(target=self._monitor_loop)
         self.monitor_thread.daemon = True
         self.monitor_thread.start()
@@ -494,6 +504,7 @@ class AudioMonitor:
                     
                     if self.silence_start_time is None:
                         self.silence_start_time = time.time()
+                        self.silence_warning_sent = False  # Сброс флага при начале тишины
                         # Лампа становится красной при обнаружении тишины (если звук был подтвержден)
                         if self.sound_confirmed:
                             self.lamp_status = True
@@ -510,9 +521,11 @@ class AudioMonitor:
                             print(f"⚠️  ВНИМАНИЕ! Тишина продолжается уже {silence_time:.1f} секунд!")
                             print(f"   Уровень звука: {avg_rms:.6f} (порог: {self.threshold})")
                             
-                            # Вызываем колбэк
-                            if self.on_silence_warning_callback:
+                            # Вызываем колбэк ТОЛЬКО ОДИН РАЗ при первом достижении порога
+                            if self.on_silence_warning_callback and not self.silence_warning_sent:
+                                print(f"[{datetime.now().strftime('%H:%M:%S')}] [AudioMonitor] Вызов колбэка on_silence_warning")
                                 self.on_silence_warning_callback(silence_time)
+                                self.silence_warning_sent = True  # Отмечаем что предупреждение отправлено
                 else:
                     # Звук выше порога
                     # Отслеживание длительности звука
@@ -534,11 +547,13 @@ class AudioMonitor:
                                 silence_time = time.time() - self.silence_start_time
                                 print(f"[{datetime.now().strftime('%H:%M:%S')}] Конец тишины после {silence_time:.1f}с - звук подтвержден!")
                                 
-                                # Вызываем колбэк при восстановлении звука
-                                if self.on_sound_restored_callback:
+                                # Вызываем колбэк при восстановлении звука (только если предупреждение было отправлено)
+                                if self.on_sound_restored_callback and self.silence_warning_sent:
+                                    print(f"[{datetime.now().strftime('%H:%M:%S')}] [AudioMonitor] Вызов колбэка on_sound_restored")
                                     self.on_sound_restored_callback(silence_time)
                                 
                                 self.silence_start_time = None
+                                self.silence_warning_sent = False  # Сброс флага при восстановлении звука
                         
             except Exception as e:
                 print(f"[AudioMonitor] Критическая ошибка в цикле мониторинга: {e}")

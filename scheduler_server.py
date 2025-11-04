@@ -124,11 +124,24 @@ class DiscoServer:
         """Обработчик восстановления звука"""
         self.log(f"🔊 Звук восстановлен после {silence_time:.1f}с тишины")
         
+        # Получаем текущее время для отладки
+        now = datetime.now()
+        current_day = now.weekday()
+        current_time = now.time()
+        
+        # Проверяем расписание с детальным логированием
+        is_scheduled = self.scheduler.is_disco_scheduled_now()
+        self.log(f"[DEBUG] Текущий день: {current_day}, время: {current_time.strftime('%H:%M:%S')}, дискотека по расписанию: {is_scheduled}")
+        
         # Отправляем уведомление если сейчас время дискотеки по расписанию
-        if self.scheduler.is_disco_scheduled_now():
+        if is_scheduled:
             try:
                 self.log(f"📱 Отправка уведомления о восстановлении звука в Telegram...")
-                self.scheduler.telegram_bot.notify_music_restored(silence_time)
+                result = self.scheduler.telegram_bot.notify_music_restored(silence_time)
+                if result:
+                    self.log(f"✅ Уведомление о восстановлении успешно отправлено")
+                else:
+                    self.log(f"❌ Уведомление о восстановлении не было отправлено")
             except Exception as e:
                 self.log(f'⚠️ Ошибка отправки Telegram уведомления: {e}')
         else:
@@ -138,11 +151,30 @@ class DiscoServer:
         """Обработчик предупреждения о длительной тишине"""
         self.log(f"⚠️ ТИШИНА! {silence_time:.0f}с")
         
+        # Получаем текущее время для отладки
+        now = datetime.now()
+        current_day = now.weekday()
+        current_time = now.time()
+        
+        # Проверяем расписание с детальным логированием
+        is_scheduled = self.scheduler.is_disco_scheduled_now()
+        self.log(f"[DEBUG] Текущий день недели: {current_day} (0=Пн, 6=Вс)")
+        self.log(f"[DEBUG] Запланированные дни: {self.scheduler.scheduled_days}")
+        self.log(f"[DEBUG] Текущее время: {current_time.strftime('%H:%M:%S')}")
+        self.log(f"[DEBUG] Время дискотеки: {self.scheduler.start_time.strftime('%H:%M')} - {self.scheduler.stop_time.strftime('%H:%M')}")
+        self.log(f"[DEBUG] Дискотека по расписанию: {is_scheduled}")
+        self.log(f"[DEBUG] Telegram bot enabled: {self.scheduler.telegram_bot.enabled if self.scheduler.telegram_bot else False}")
+        self.log(f"[DEBUG] Telegram notifications enabled: {self.scheduler.telegram_bot.notifications_enabled if self.scheduler.telegram_bot else False}")
+        
         # Отправляем уведомление если сейчас время дискотеки по расписанию
-        if self.scheduler.is_disco_scheduled_now():
+        if is_scheduled:
             try:
                 self.log(f"📱 Отправка уведомления о тишине в Telegram...")
-                self.scheduler.telegram_bot.notify_music_stopped(silence_time)
+                result = self.scheduler.telegram_bot.notify_music_stopped(silence_time)
+                if result:
+                    self.log(f"✅ Уведомление о тишине успешно отправлено")
+                else:
+                    self.log(f"❌ Уведомление о тишине не было отправлено (возможно бот не активирован)")
             except Exception as e:
                 self.log(f'⚠️ Ошибка отправки Telegram уведомления: {e}')
         else:
@@ -406,10 +438,14 @@ class DiscoServer:
                 if self.audio_monitor:
                     audio_settings_updated = False
                     if 'audio_threshold' in data:
+                        old_threshold = self.audio_monitor.threshold
                         self.audio_monitor.threshold = data['audio_threshold']
+                        self.log(f"📊 Порог звука изменен: {old_threshold} → {self.audio_monitor.threshold}")
                         audio_settings_updated = True
                     if 'audio_silence_duration' in data:
+                        old_duration = self.audio_monitor.silence_duration
                         self.audio_monitor.silence_duration = data['audio_silence_duration']
+                        self.log(f"⏱️ Длительность тишины изменена: {old_duration}с → {self.audio_monitor.silence_duration}с")
                         audio_settings_updated = True
                     if 'audio_sound_confirmation_duration' in data:
                         self.audio_monitor.sound_confirmation_duration = data['audio_sound_confirmation_duration']
