@@ -401,7 +401,6 @@ class AudioMonitor:
         
     def _monitor_loop(self):
         """Основной цикл мониторинга"""
-        warning_sent = False  # Флаг для отправки уведомления о тишине
         error_count = 0  # Счетчик ошибок подряд
         max_errors = 5   # Максимум ошибок подряд перед остановкой
         
@@ -506,11 +505,10 @@ class AudioMonitor:
                     else:
                         # Проверяем длительность тишины
                         silence_time = time.time() - self.silence_start_time
-                        if silence_time >= self.silence_duration and not warning_sent:
+                        if silence_time >= self.silence_duration:
                             self.lamp_status = True  # Красная лампа
                             print(f"⚠️  ВНИМАНИЕ! Тишина продолжается уже {silence_time:.1f} секунд!")
                             print(f"   Уровень звука: {avg_rms:.6f} (порог: {self.threshold})")
-                            warning_sent = True
                             
                             # Вызываем колбэк
                             if self.on_silence_warning_callback:
@@ -536,12 +534,11 @@ class AudioMonitor:
                                 silence_time = time.time() - self.silence_start_time
                                 print(f"[{datetime.now().strftime('%H:%M:%S')}] Конец тишины после {silence_time:.1f}с - звук подтвержден!")
                                 
-                                # Вызываем колбэк только если было предупреждение И звук подтвержден
-                                if warning_sent and self.on_sound_restored_callback:
+                                # Вызываем колбэк при восстановлении звука
+                                if self.on_sound_restored_callback:
                                     self.on_sound_restored_callback(silence_time)
                                 
                                 self.silence_start_time = None
-                                warning_sent = False
                         
             except Exception as e:
                 print(f"[AudioMonitor] Критическая ошибка в цикле мониторинга: {e}")
