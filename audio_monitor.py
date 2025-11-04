@@ -518,11 +518,10 @@ class AudioMonitor:
                         silence_time = time.time() - self.silence_start_time
                         if silence_time >= self.silence_duration:
                             self.lamp_status = True  # Красная лампа
-                            print(f"⚠️  ВНИМАНИЕ! Тишина продолжается уже {silence_time:.1f} секунд!")
-                            print(f"   Уровень звука: {avg_rms:.6f} (порог: {self.threshold})")
                             
                             # Вызываем колбэк ТОЛЬКО ОДИН РАЗ при первом достижении порога
                             if self.on_silence_warning_callback and not self.silence_warning_sent:
+                                print(f"[{datetime.now().strftime('%H:%M:%S')}] ⚠️ ТИШИНА {silence_time:.1f}с! (уровень: {avg_rms:.6f}, порог: {self.threshold})")
                                 print(f"[{datetime.now().strftime('%H:%M:%S')}] [AudioMonitor] Вызов колбэка on_silence_warning")
                                 self.on_silence_warning_callback(silence_time)
                                 self.silence_warning_sent = True  # Отмечаем что предупреждение отправлено
