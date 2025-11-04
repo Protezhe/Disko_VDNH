@@ -15,7 +15,7 @@ import socket
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-from threading import Thread
+from threading import Thread, Lock
 
 from scheduler import DiscoScheduler
 from soundcheck import SoundCheck
@@ -54,6 +54,9 @@ class DiscoServer:
     def __init__(self):
         self.config_file = os.path.join(get_exe_dir(), 'scheduler_config.json')
         self.running = True
+        
+        # Lock для безопасной записи в конфиг из разных потоков
+        self.config_lock = Lock()
         
         # Флаг автозапуска саундчека и время запуска до старта дискотеки
         self.soundcheck_schedule_enabled = False
@@ -143,91 +146,96 @@ class DiscoServer:
         """Обработчик обновления уровня звука (без вывода в лог, чтобы не засорять)"""
         pass
     
+    def _safe_update_config(self, updates):
+        """
+        Безопасное обновление конфига с блокировкой
+        
+        Args:
+            updates (dict): Словарь с обновлениями для конфига
+        """
+        with self.config_lock:
+            try:
+                # Загружаем существующие настройки
+                existing_settings = {}
+                if os.path.exists(self.config_file):
+                    with open(self.config_file, 'r', encoding='utf-8') as f:
+                        existing_settings = json.load(f)
+                
+                # Применяем обновления
+                existing_settings.update(updates)
+                
+                # Создаем временный файл для атомарной записи
+                temp_file = self.config_file + '.tmp'
+                with open(temp_file, 'w', encoding='utf-8') as f:
+                    json.dump(existing_settings, f, ensure_ascii=False, indent=2)
+                
+                # Атомарно заменяем файл
+                os.replace(temp_file, self.config_file)
+                
+                return True
+            except Exception as e:
+                self.log(f"❌ Ошибка обновления конфига: {e}")
+                # Удаляем временный файл если он остался
+                temp_file = self.config_file + '.tmp'
+                if os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                    except:
+                        pass
+                return False
+    
     def _save_monitoring_enabled_to_config(self, enabled):
         """Сохраняет состояние мониторинга в конфиг"""
         try:
-            # Загружаем существующие настройки
-            existing_settings = {}
-            if os.path.exists(self.config_file):
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    existing_settings = json.load(f)
-            
-            # Обновляем только состояние мониторинга
-            existing_settings['monitoring_enabled'] = enabled
-            
-            # Сохраняем в файл
-            with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(existing_settings, f, ensure_ascii=False, indent=2)
-            
-            self.log(f"💾 Состояние мониторинга сохранено в конфиг: {'включен' if enabled else 'отключен'}")
+            success = self._safe_update_config({'monitoring_enabled': enabled})
+            if success:
+                self.log(f"💾 Состояние мониторинга сохранено в конфиг: {'включен' if enabled else 'отключен'}")
         except Exception as e:
             self.log(f"❌ Ошибка сохранения состояния мониторинга: {e}")
     
     def _save_audio_settings_to_config(self):
         """Сохраняет настройки аудио мониторинга в конфиг"""
         try:
-            # Загружаем существующие настройки
-            existing_settings = {}
-            if os.path.exists(self.config_file):
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    existing_settings = json.load(f)
-            
-            # Обновляем аудио настройки
+            # Подготавливаем обновления
+            updates = {}
             if self.audio_monitor:
-                existing_settings['audio_threshold'] = self.audio_monitor.threshold
-                existing_settings['audio_silence_duration'] = self.audio_monitor.silence_duration
-                existing_settings['audio_sound_confirmation_duration'] = self.audio_monitor.sound_confirmation_duration
-                existing_settings['audio_buffer_size'] = self.audio_monitor.buffer_size
+                updates['audio_threshold'] = float(self.audio_monitor.threshold)
+                updates['audio_silence_duration'] = int(self.audio_monitor.silence_duration)
+                updates['audio_sound_confirmation_duration'] = int(self.audio_monitor.sound_confirmation_duration)
+                updates['audio_buffer_size'] = int(self.audio_monitor.buffer_size)
                 if self.audio_monitor.device_index is not None:
-                    existing_settings['audio_device_index'] = self.audio_monitor.device_index
+                    updates['audio_device_index'] = int(self.audio_monitor.device_index)
             
-            # Сохраняем в файл
-            with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(existing_settings, f, ensure_ascii=False, indent=2)
-            
-            self.log("💾 Настройки аудио мониторинга сохранены в конфиг")
+            success = self._safe_update_config(updates)
+            if success:
+                self.log("💾 Настройки аудио мониторинга сохранены в конфиг")
         except Exception as e:
             self.log(f"❌ Ошибка сохранения настроек аудио мониторинга: {e}")
     
     def _save_soundcheck_schedule_enabled_to_config(self, enabled):
         """Сохраняет состояние автосаундчека в конфиг"""
         try:
-            existing_settings = {}
-            if os.path.exists(self.config_file):
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    existing_settings = json.load(f)
-            existing_settings['soundcheck_schedule_enabled'] = bool(enabled)
-            with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(existing_settings, f, ensure_ascii=False, indent=2)
-            self.log(f"💾 Авто-саундчек по расписанию: {'включен' if enabled else 'отключен'}")
+            success = self._safe_update_config({'soundcheck_schedule_enabled': bool(enabled)})
+            if success:
+                self.log(f"💾 Авто-саундчек по расписанию: {'включен' if enabled else 'отключен'}")
         except Exception as e:
             self.log(f"❌ Ошибка сохранения состояния авто-саундчека: {e}")
     
     def _save_soundcheck_minutes_to_config(self, minutes):
         """Сохраняет количество минут до запуска саундчека в конфиг"""
         try:
-            existing_settings = {}
-            if os.path.exists(self.config_file):
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    existing_settings = json.load(f)
-            existing_settings['soundcheck_minutes_before_disco'] = int(minutes)
-            with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(existing_settings, f, ensure_ascii=False, indent=2)
-            self.log(f"💾 Авто-саундчек: за {minutes} минут до дискотеки")
+            success = self._safe_update_config({'soundcheck_minutes_before_disco': int(minutes)})
+            if success:
+                self.log(f"💾 Авто-саундчек: за {minutes} минут до дискотеки")
         except Exception as e:
             self.log(f"❌ Ошибка сохранения времени авто-саундчека: {e}")
     
     def _save_soundcheck_duration_to_config(self, duration):
         """Сохраняет длительность саундчека в конфиг"""
         try:
-            existing_settings = {}
-            if os.path.exists(self.config_file):
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    existing_settings = json.load(f)
-            existing_settings['soundcheck_duration_seconds'] = int(duration)
-            with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(existing_settings, f, ensure_ascii=False, indent=2)
-            self.log(f"💾 Длительность саундчека: {duration} секунд")
+            success = self._safe_update_config({'soundcheck_duration_seconds': int(duration)})
+            if success:
+                self.log(f"💾 Длительность саундчека: {duration} секунд")
         except Exception as e:
             self.log(f"❌ Ошибка сохранения длительности саундчека: {e}")
 

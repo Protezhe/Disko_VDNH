@@ -9,6 +9,7 @@ import os
 import sys
 import json
 from datetime import datetime, time, timedelta
+from threading import Lock
 from playlist_gen import PlaylistGenerator
 from vlc_playlist import VLCPlaylistLauncher
 from telegram_bot import TelegramNotifier
@@ -38,6 +39,9 @@ def get_exe_dir():
 
 class DiscoScheduler:
     """Класс планировщика дискотеки"""
+    
+    # Глобальный lock для синхронизации записи в конфиг
+    _config_lock = Lock()
     
     def __init__(self, config_file=None, log_callback=None):
         """
@@ -136,45 +140,57 @@ class DiscoScheduler:
         Args:
             settings (dict): Словарь с настройками
         """
-        try:
-            # Загружаем существующие настройки, чтобы не потерять другие данные
-            existing_settings = {}
-            if os.path.exists(self.config_file):
-                try:
-                    with open(self.config_file, 'r', encoding='utf-8') as f:
-                        existing_settings = json.load(f)
-                except Exception as e:
-                    self.log(f'Ошибка загрузки существующих настроек: {e}')
-            
-            # Обновляем настройки планировщика
-            if 'scheduled_days' in settings:
-                existing_settings['scheduled_days'] = settings['scheduled_days']
-                self.scheduled_days = settings['scheduled_days']
-            
-            if 'start_time' in settings:
-                existing_settings['start_time'] = settings['start_time']
-                self.start_time = time(settings['start_time']['hour'], settings['start_time']['minute'])
-            
-            if 'stop_time' in settings:
-                existing_settings['stop_time'] = settings['stop_time']
-                self.stop_time = time(settings['stop_time']['hour'], settings['stop_time']['minute'])
-            
-            if 'playlist_duration_hours' in settings:
-                existing_settings['playlist_duration_hours'] = settings['playlist_duration_hours']
-                self.playlist_duration_hours = settings['playlist_duration_hours']
-            
-            if 'scheduler_enabled' in settings:
-                existing_settings['scheduler_enabled'] = settings['scheduler_enabled']
-                self.scheduler_enabled = settings['scheduler_enabled']
-            
-            # Сохраняем в файл
-            with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(existing_settings, f, ensure_ascii=False, indent=2)
+        with self._config_lock:
+            try:
+                # Загружаем существующие настройки, чтобы не потерять другие данные
+                existing_settings = {}
+                if os.path.exists(self.config_file):
+                    try:
+                        with open(self.config_file, 'r', encoding='utf-8') as f:
+                            existing_settings = json.load(f)
+                    except Exception as e:
+                        self.log(f'Ошибка загрузки существующих настроек: {e}')
                 
-            self.log('Настройки планировщика сохранены')
-            
-        except Exception as e:
-            self.log(f'Ошибка сохранения настроек: {str(e)}')
+                # Обновляем настройки планировщика
+                if 'scheduled_days' in settings:
+                    existing_settings['scheduled_days'] = settings['scheduled_days']
+                    self.scheduled_days = settings['scheduled_days']
+                
+                if 'start_time' in settings:
+                    existing_settings['start_time'] = settings['start_time']
+                    self.start_time = time(settings['start_time']['hour'], settings['start_time']['minute'])
+                
+                if 'stop_time' in settings:
+                    existing_settings['stop_time'] = settings['stop_time']
+                    self.stop_time = time(settings['stop_time']['hour'], settings['stop_time']['minute'])
+                
+                if 'playlist_duration_hours' in settings:
+                    existing_settings['playlist_duration_hours'] = float(settings['playlist_duration_hours'])
+                    self.playlist_duration_hours = float(settings['playlist_duration_hours'])
+                
+                if 'scheduler_enabled' in settings:
+                    existing_settings['scheduler_enabled'] = bool(settings['scheduler_enabled'])
+                    self.scheduler_enabled = bool(settings['scheduler_enabled'])
+                
+                # Создаем временный файл для атомарной записи
+                temp_file = self.config_file + '.tmp'
+                with open(temp_file, 'w', encoding='utf-8') as f:
+                    json.dump(existing_settings, f, ensure_ascii=False, indent=2)
+                
+                # Атомарно заменяем файл
+                os.replace(temp_file, self.config_file)
+                    
+                self.log('Настройки планировщика сохранены')
+                
+            except Exception as e:
+                self.log(f'Ошибка сохранения настроек: {str(e)}')
+                # Удаляем временный файл если он остался
+                temp_file = self.config_file + '.tmp'
+                if os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                    except:
+                        pass
     
     def is_disco_scheduled_now(self):
         """Проверяет, должна ли дискотека быть активной в данный момент по расписанию."""
@@ -446,27 +462,39 @@ class DiscoScheduler:
     
     def _save_scheduler_state(self):
         """Сохраняет только состояние планировщика в конфиг"""
-        try:
-            # Загружаем существующие настройки
-            existing_settings = {}
-            if os.path.exists(self.config_file):
-                try:
-                    with open(self.config_file, 'r', encoding='utf-8') as f:
-                        existing_settings = json.load(f)
-                except Exception as e:
-                    self.log(f'Ошибка загрузки существующих настроек: {e}')
-            
-            # Обновляем только состояние планировщика
-            existing_settings['scheduler_enabled'] = self.scheduler_enabled
-            
-            # Сохраняем в файл
-            with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(existing_settings, f, ensure_ascii=False, indent=2)
+        with self._config_lock:
+            try:
+                # Загружаем существующие настройки
+                existing_settings = {}
+                if os.path.exists(self.config_file):
+                    try:
+                        with open(self.config_file, 'r', encoding='utf-8') as f:
+                            existing_settings = json.load(f)
+                    except Exception as e:
+                        self.log(f'Ошибка загрузки существующих настроек: {e}')
                 
-            self.log('Состояние планировщика сохранено в конфиг')
-            
-        except Exception as e:
-            self.log(f'Ошибка сохранения состояния планировщика: {str(e)}')
+                # Обновляем только состояние планировщика
+                existing_settings['scheduler_enabled'] = bool(self.scheduler_enabled)
+                
+                # Создаем временный файл для атомарной записи
+                temp_file = self.config_file + '.tmp'
+                with open(temp_file, 'w', encoding='utf-8') as f:
+                    json.dump(existing_settings, f, ensure_ascii=False, indent=2)
+                
+                # Атомарно заменяем файл
+                os.replace(temp_file, self.config_file)
+                    
+                self.log('Состояние планировщика сохранено в конфиг')
+                
+            except Exception as e:
+                self.log(f'Ошибка сохранения состояния планировщика: {str(e)}')
+                # Удаляем временный файл если он остался
+                temp_file = self.config_file + '.tmp'
+                if os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                    except:
+                        pass
     
     def get_status(self):
         """
