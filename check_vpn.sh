@@ -5,7 +5,7 @@
 VPN_CONFIG="Disco.ovpn"
 LOG_FILE="vpn_monitor.log"
 TEST_HOST="10.8.0.9"  # IP адрес в VPN сети для проверки доступности
-MAX_RETRIES=50
+MAX_RETRIES=500
 
 # Переходим в директорию скрипта
 cd "$(dirname "$0")"
