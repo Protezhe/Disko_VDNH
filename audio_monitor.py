@@ -78,6 +78,9 @@ class AudioMonitor:
         self.audio = pyaudio.PyAudio()
         self.stream = None
         
+        # Lock для безопасной остановки в многопоточной среде
+        self._stop_lock = threading.Lock()
+        
         # Переменные для отслеживания тишины
         self.silence_start_time = None
         self.is_monitoring = False
@@ -357,26 +360,44 @@ class AudioMonitor:
         return int32_data.astype(np.float32) / 2147483648.0
             
     def stop_monitoring(self):
-        """Остановка мониторинга звука"""
-        self.is_monitoring = False
-        
-        if self.stream:
-            try:
-                self.stream.stop_stream()
-                self.stream.close()
-            except Exception as e:
-                print(f"[AudioMonitor] Ошибка при закрытии потока: {e}")
-            finally:
-                self.stream = None
+        """Остановка мониторинга звука с защитой от Segmentation Fault"""
+        with self._stop_lock:
+            # Если уже остановлен, просто выходим
+            if not self.is_monitoring:
+                print("[AudioMonitor] Мониторинг уже остановлен")
+                return
             
-        if self.monitor_thread and self.monitor_thread.is_alive():
-            # Ждем завершения потока с таймаутом (1 секунда)
-            self.monitor_thread.join(timeout=1.0)
-            if self.monitor_thread.is_alive():
-                print("[AudioMonitor] Поток мониторинга не завершился, но продолжаем...")
+            print("[AudioMonitor] Начинаем остановку мониторинга...")
             
-        # НЕ вызываем audio.terminate() - оставляем PyAudio активным для перезапуска
-        print("Мониторинг остановлен")
+            # Сначала устанавливаем флаг остановки
+            self.is_monitoring = False
+            
+            # Ждем завершения потока мониторинга ДО закрытия stream
+            if self.monitor_thread and self.monitor_thread.is_alive():
+                print("[AudioMonitor] Ожидание завершения потока мониторинга...")
+                self.monitor_thread.join(timeout=2.0)
+                if self.monitor_thread.is_alive():
+                    print("[AudioMonitor] ⚠ Поток мониторинга не завершился за 2 секунды")
+            
+            # Теперь безопасно закрываем stream
+            if self.stream:
+                try:
+                    # Проверяем, что поток еще активен перед остановкой
+                    if hasattr(self.stream, 'is_active') and self.stream.is_active():
+                        print("[AudioMonitor] Останавливаем аудио поток...")
+                        self.stream.stop_stream()
+                        time.sleep(0.1)  # Небольшая задержка для корректной остановки
+                    
+                    print("[AudioMonitor] Закрываем аудио поток...")
+                    self.stream.close()
+                    time.sleep(0.1)  # Задержка после закрытия
+                    
+                except Exception as e:
+                    print(f"[AudioMonitor] ⚠ Ошибка при закрытии потока: {e}")
+                finally:
+                    self.stream = None
+            
+            print("[AudioMonitor] ✓ Мониторинг остановлен")
         
     def _monitor_loop(self):
         """Основной цикл мониторинга"""

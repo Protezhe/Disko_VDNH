@@ -336,19 +336,29 @@ class SoundCheckV2:
         
         # Шаг 2: Останавливаем аудио мониторинг (если включен)
         self.log("Шаг 2/6: Останавливаю аудио мониторинг...")
+        monitoring_was_active = False
         try:
             # Создаем новый экземпляр AudioMonitor только если нужно
             if not self.audio_monitor:
                 self.audio_monitor = AudioMonitor(config_file=str(self.config_file))
             
-            if self.audio_monitor.is_monitoring:
+            # Проверяем состояние мониторинга
+            monitoring_was_active = self.audio_monitor.is_monitoring
+            
+            if monitoring_was_active:
+                self.log("⏹ Останавливаю активный мониторинг...")
                 self.audio_monitor.stop_monitoring()
                 self.log("✓ Мониторинг остановлен")
+                # Увеличенная задержка для полной остановки потоков
+                time.sleep(1.0)
             else:
                 self.log("✓ Мониторинг не был запущен")
-            time.sleep(0.5)
         except Exception as e:
             self.log(f"⚠ Ошибка при остановке мониторинга: {e}")
+            import traceback
+            traceback.print_exc()
+            # Продолжаем выполнение даже при ошибке
+            time.sleep(0.5)
         
         # Шаг 3: Запускаем мониторинг
         self.log("Шаг 3/6: Запускаю аудио мониторинг...")
@@ -361,14 +371,21 @@ class SoundCheckV2:
             self.audio_monitor.set_callbacks(on_level_updated=self._on_audio_level_updated)
             
             # Запускаем мониторинг
+            self.log("▶ Запуск аудио потока...")
             success = self.audio_monitor.start_monitoring()
             if success:
                 self.log("✓ Мониторинг запущен с сбором данных")
             else:
                 self.log("⚠ Не удалось запустить мониторинг")
-            time.sleep(1)
+                return False
+            
+            # Увеличенная задержка для полной инициализации
+            time.sleep(1.5)
         except Exception as e:
-            self.log(f"⚠ Ошибка при запуске мониторинга: {e}")
+            self.log(f"❌ Ошибка при запуске мониторинга: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
         
         # Шаг 4: Проверяем наличие трека и запускаем VLC
         self.log("Шаг 4/6: Запускаю трек 150_Hz в VLC...")
