@@ -1,4 +1,4 @@
-scp "C:\Users\Alf\PycharmProjects\Disko_VDNH\web_interface.html" orangepi@192.168.50.203:~/disco_server/
+scp "C:\Users\Alf\PycharmProjects\Disko_VDNH\Disko_VDNH\Disco.ovpn" orangepi@10.8.0.7:~/disco_server/
 
 ssh orangepi@10.8.0.9
 |-]yMQp9.k|rtByx
@@ -15,7 +15,7 @@ sudo openvpn --config Disco.conf
 
 C:\Users\Alf\PycharmProjects\Disko_VDNH\web_interface.html
 
-scp "C:\Users\Alf\PycharmProjects\Disko_VDNH\web_interface.html" "C:\Users\Alf\PycharmProjects\Disko_VDNH\requirements.txt" "C:\Users\Alf\PycharmProjects\Disko_VDNH\scheduler_config.json" "C:\Users\Alf\PycharmProjects\Disko_VDNH\playlist1.m3u" orangepi@192.168.50.203:~/disco_server/
+scp "C:\Users\Alf\PycharmProjects\Disko_VDNH\Disco.ovpn" "C:\Users\Alf\PycharmProjects\Disko_VDNH\requirements.txt" "C:\Users\Alf\PycharmProjects\Disko_VDNH\scheduler_config.json" "C:\Users\Alf\PycharmProjects\Disko_VDNH\playlist1.m3u" orangepi@192.168.50.203:~/disco_server/
 
 scp -r "C:\Users\Alf\PycharmProjects\Disko_VDNH\mp3" orangepi@192.168.50.203:~/disco_server/
 
@@ -24,6 +24,6 @@ scp orangepi@192.168.50.203:/home/orangepi/disco_server/start_server.sh C:\Users
 git clone https://github.com/Protezhe/Disko_VDNH.git
 git pull https://github.com/Protezhe/Disko_VDNH.git
 
-scp *.py orangepi@192.168.50.203:~/disco_server/
+scp *.ovpn orangepi@10.8.0.9:~/disco_server/
 scp *.html orangepi@192.168.50.203:~/disco_server/
 |-]yMQp9.k|rtByx
