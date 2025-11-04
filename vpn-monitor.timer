@@ -1,0 +1,13 @@
+[Unit]
+Description=VPN Connection Monitor Timer
+Requires=vpn-monitor.service
+
+[Timer]
+# Запускать каждый час
+OnBootSec=1min
+OnUnitActiveSec=1h
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
+

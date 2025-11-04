@@ -1,0 +1,16 @@
+[Unit]
+Description=VPN Connection Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=orangepi
+WorkingDirectory=/home/orangepi/disco_server
+ExecStart=/bin/bash /home/orangepi/disco_server/check_vpn.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
