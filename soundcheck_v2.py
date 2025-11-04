@@ -54,6 +54,10 @@ class SoundCheckV2:
         # Инициализация компонентов
         self.vlc_launcher = VLCPlaylistLauncher()
         self.audio_monitor = audio_monitor  # Используем переданный экземпляр или None
+        # Сохраненные колбэки и состояние мониторинга для последующего восстановления
+        self._saved_callbacks = None
+        self._monitoring_was_active = False
+        self._monitoring_enabled_was = None
         
         # Загружаем настройки из конфига
         self._load_config()
@@ -344,6 +348,8 @@ class SoundCheckV2:
             
             # Проверяем состояние мониторинга
             monitoring_was_active = self.audio_monitor.is_monitoring
+            self._monitoring_was_active = monitoring_was_active
+            self._monitoring_enabled_was = self.audio_monitor.monitoring_enabled
             
             if monitoring_was_active:
                 self.log("⏹ Останавливаю активный мониторинг...")
@@ -367,8 +373,20 @@ class SoundCheckV2:
             if not self.audio_monitor.monitoring_enabled:
                 self.audio_monitor.enable_monitoring()
             
-            # Устанавливаем колбэк для сбора данных
-            self.audio_monitor.set_callbacks(on_level_updated=self._on_audio_level_updated)
+            # Сохраняем текущие колбэки, чтобы восстановить после саундчека
+            self._saved_callbacks = (
+                self.audio_monitor.on_silence_detected_callback,
+                self.audio_monitor.on_sound_restored_callback,
+                self.audio_monitor.on_silence_warning_callback,
+                self.audio_monitor.on_level_updated_callback,
+            )
+            # Устанавливаем колбэк для сбора данных, сохраняя остальные как были
+            self.audio_monitor.set_callbacks(
+                on_silence_detected=self._saved_callbacks[0],
+                on_sound_restored=self._saved_callbacks[1],
+                on_silence_warning=self._saved_callbacks[2],
+                on_level_updated=self._on_audio_level_updated,
+            )
             
             # Запускаем мониторинг
             self.log("▶ Запуск аудио потока...")
@@ -441,6 +459,26 @@ class SoundCheckV2:
         self.log("=" * 60)
         self.log("САУНДЧЕК V2 ЗАВЕРШЕН")
         self.log("=" * 60)
+        
+        # Восстанавливаем состояние мониторинга и колбэки
+        try:
+            # Восстановление колбэков
+            if self._saved_callbacks is not None:
+                self.audio_monitor.set_callbacks(
+                    on_silence_detected=self._saved_callbacks[0],
+                    on_sound_restored=self._saved_callbacks[1],
+                    on_silence_warning=self._saved_callbacks[2],
+                    on_level_updated=self._saved_callbacks[3],
+                )
+            # Восстановление активности мониторинга
+            if not self._monitoring_was_active and self.audio_monitor.is_monitoring:
+                # До саундчека мониторинг не работал — остановим его
+                self.audio_monitor.stop_monitoring()
+            # Восстановление флага monitoring_enabled, если меняли
+            if self._monitoring_enabled_was is not None:
+                self.audio_monitor.monitoring_enabled = self._monitoring_enabled_was
+        except Exception as e:
+            self.log(f"⚠ Ошибка восстановления состояния мониторинга: {e}")
         
         return True
     
