@@ -326,7 +326,6 @@ class TelegramNotifier:
         now = datetime.now()
         message = (
             f"⚠️ <b>Музыка перестала играть!</b>\n\n"
-            f"⏰ Время: {now.strftime('%d.%m.%Y %H:%M')}\n"
             f"🔇 Тишина: {silence_time:.0f} секунд\n"
         )
         return self.send_message(message)
@@ -340,8 +339,7 @@ class TelegramNotifier:
         """
         now = datetime.now()
         message = (
-            f"✅ <b>Музыка играет</b>\n\n"
-            f"⏰ Время: {now.strftime('%d.%m.%Y %H:%M')}\n"
+            f"✅ <b>Звук есть</b>\n\n"
             f"🎵 Все хорошо"
         )
         return self.send_message(message)

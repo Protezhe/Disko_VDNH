@@ -53,12 +53,15 @@ class AudioMonitor:
         Args:
             config_file (str): Путь к файлу конфигурации (если None, используется scheduler_config.json)
             threshold (float): Пороговое значение уровня звука (по умолчанию загружается из конфига или 0.01)
-            silence_duration (int): Длительность тишины в секундах для предупреждения (по умолчанию из конфига или 20)
+            silence_duration (int): Длительность тишины в секундах, после которой лампа краснеет (по умолчанию из конфига или 20)
             sample_rate (int): Частота дискретизации (по умолчанию 44100)
             chunk_size (int): Размер блока данных (по умолчанию 1024)
             device_index (int): Индекс аудиоустройства (по умолчанию из конфига или None)
             buffer_size (int): Размер буфера RMS (по умолчанию из конфига или 10)
-            sound_confirmation_duration (int): Длительность звука для подтверждения в секундах (по умолчанию из конфига или 5)
+            sound_confirmation_duration (int): Длительность звука для подтверждения в секундах (по умолчанию из конфига или 5).
+                                              Лампа зеленеет когда звук играет непрерывно >= sound_confirmation_duration.
+                                              Лампа краснеет когда тишина длится >= silence_duration.
+                                              Уведомления отправляются при изменении цвета лампы.
         """
         # Загружаем настройки из конфига
         self.config_file = config_file if config_file else os.path.join(get_exe_dir(), 'scheduler_config.json')
@@ -93,7 +96,6 @@ class AudioMonitor:
         self.silence_start_time = None
         self.is_monitoring = False
         self.monitor_thread = None
-        self.silence_warning_sent = False  # Флаг отправки предупреждения о тишине
         
         # Переменные для отслеживания длительности звука
         self.sound_start_time = None
@@ -101,6 +103,7 @@ class AudioMonitor:
         
         # Статус лампы (True = красная/тишина, False = зеленая/звук есть)
         self.lamp_status = True  # По умолчанию красная (звук не подтвержден)
+        self.previous_lamp_status = True  # Для отслеживания изменений
         
         # Флаг включения/отключения мониторинга (загружается из конфига)
         if 'monitoring_enabled' in config:
@@ -340,18 +343,19 @@ class AudioMonitor:
         self.is_monitoring = True
         # Инициализируем лампу в красном состоянии (звук не подтвержден)
         self.lamp_status = True
+        self.previous_lamp_status = True
         self.silence_start_time = None
         self.sound_start_time = None
         self.sound_confirmed = False
-        self.silence_warning_sent = False
         self.monitor_thread = threading.Thread(target=self._monitor_loop)
         self.monitor_thread.daemon = True
         self.monitor_thread.start()
         
         print(f"[AudioMonitor] Мониторинг звука запущен")
         print(f"[AudioMonitor] Пороговое значение: {self.threshold}")
-        print(f"[AudioMonitor] Предупреждение при тишине более {self.silence_duration} секунд")
-        print(f"[AudioMonitor] Подтверждение звука после {self.sound_confirmation_duration} секунд")
+        print(f"[AudioMonitor] Лампа зеленеет: звук играет {self.sound_confirmation_duration}+ секунд")
+        print(f"[AudioMonitor] Лампа краснеет: тишина длится {self.silence_duration}+ секунд")
+        print(f"[AudioMonitor] Уведомления отправляются при изменении цвета лампы")
         print("[AudioMonitor] Нажмите Ctrl+C для остановки...")
         return True
     
@@ -496,37 +500,42 @@ class AudioMonitor:
                 
                 # Проверка уровня звука
                 if avg_rms < self.threshold:
-                    # Звук ниже порога - сбрасываем отслеживание звука
+                    # Звук ниже порога - тишина
+                    
+                    # Если был подтвержденный звук, сбрасываем его
+                    if self.sound_confirmed:
+                        self.sound_confirmed = False
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] Звук прерван, сброс подтверждения")
+                    
+                    # Сбрасываем отслеживание звука
                     if self.sound_start_time is not None:
                         self.sound_start_time = None
-                        self.sound_confirmed = False
-                        print(f"[{datetime.now().strftime('%H:%M:%S')}] Звук прерван, сброс отслеживания")
                     
+                    # Начинаем отслеживание тишины
                     if self.silence_start_time is None:
                         self.silence_start_time = time.time()
-                        self.silence_warning_sent = False  # Сброс флага при начале тишины
-                        # Лампа становится красной при обнаружении тишины (если звук был подтвержден)
-                        if self.sound_confirmed:
-                            self.lamp_status = True
                         print(f"[{datetime.now().strftime('%H:%M:%S')}] Тишина обнаружена (уровень: {avg_rms:.6f})")
                         
                         # Вызываем колбэк
                         if self.on_silence_detected_callback:
                             self.on_silence_detected_callback(avg_rms)
-                    else:
-                        # Проверяем длительность тишины
-                        silence_time = time.time() - self.silence_start_time
-                        if silence_time >= self.silence_duration:
-                            self.lamp_status = True  # Красная лампа
-                            
-                            # Вызываем колбэк ТОЛЬКО ОДИН РАЗ при первом достижении порога
-                            if self.on_silence_warning_callback and not self.silence_warning_sent:
-                                print(f"[{datetime.now().strftime('%H:%M:%S')}] ⚠️ ТИШИНА {silence_time:.1f}с! (уровень: {avg_rms:.6f}, порог: {self.threshold})")
-                                print(f"[{datetime.now().strftime('%H:%M:%S')}] [AudioMonitor] Вызов колбэка on_silence_warning")
-                                self.on_silence_warning_callback(silence_time)
-                                self.silence_warning_sent = True  # Отмечаем что предупреждение отправлено
+                    
+                    # Проверяем длительность тишины
+                    silence_time = time.time() - self.silence_start_time
+                    if silence_time >= self.silence_duration:
+                        # Лампа красная только если тишина длится больше порога
+                        if not self.lamp_status:  # Если лампа еще не красная
+                            print(f"[{datetime.now().strftime('%H:%M:%S')}] ⚠️ ТИШИНА {silence_time:.1f}с! Порог превышен")
+                        self.lamp_status = True
+                    # Иначе лампа остается в текущем состоянии (не меняется)
+                        
                 else:
                     # Звук выше порога
+                    
+                    # Сбрасываем отслеживание тишины
+                    if self.silence_start_time is not None:
+                        self.silence_start_time = None
+                    
                     # Отслеживание длительности звука
                     if self.sound_start_time is None:
                         self.sound_start_time = time.time()
@@ -536,23 +545,30 @@ class AudioMonitor:
                         sound_time = time.time() - self.sound_start_time
                         if sound_time >= self.sound_confirmation_duration and not self.sound_confirmed:
                             self.sound_confirmed = True
-                            self.lamp_status = False  # Зеленая лампа - звук подтвержден
                             print(f"✅ ЗВУК ПОДТВЕРЖДЕН! Непрерывный звук {sound_time:.1f} секунд (уровень: {avg_rms:.6f})")
                             print(f"   Лампа переключена в зеленый режим")
-                            
-                            # ИСПРАВЛЕНИЕ: Отправляем уведомление о восстановлении только после подтверждения звука
-                            # Сбрасываем отслеживание тишины только при подтвержденном звуке
-                            if self.silence_start_time is not None:
-                                silence_time = time.time() - self.silence_start_time
-                                print(f"[{datetime.now().strftime('%H:%M:%S')}] Конец тишины после {silence_time:.1f}с - звук подтвержден!")
-                                
-                                # Вызываем колбэк при восстановлении звука (только если предупреждение было отправлено)
-                                if self.on_sound_restored_callback and self.silence_warning_sent:
-                                    print(f"[{datetime.now().strftime('%H:%M:%S')}] [AudioMonitor] Вызов колбэка on_sound_restored")
-                                    self.on_sound_restored_callback(silence_time)
-                                
-                                self.silence_start_time = None
-                                self.silence_warning_sent = False  # Сброс флага при восстановлении звука
+                    
+                    # Лампа зеленая только если звук подтвержден
+                    if self.sound_confirmed:
+                        self.lamp_status = False
+                
+                # Проверяем изменение статуса лампы и вызываем колбэки
+                if self.lamp_status != self.previous_lamp_status:
+                    if self.lamp_status:  # Лампа стала красной (зеленая -> красная)
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔴 Лампа: зеленая -> красная")
+                        if self.on_silence_warning_callback:
+                            silence_time = time.time() - self.silence_start_time if self.silence_start_time else 0
+                            print(f"[{datetime.now().strftime('%H:%M:%S')}] [AudioMonitor] Вызов колбэка on_silence_warning (тишина: {silence_time:.1f}с)")
+                            self.on_silence_warning_callback(silence_time)
+                    else:  # Лампа стала зеленой (красная -> зеленая)
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🟢 Лампа: красная -> зеленая")
+                        if self.on_sound_restored_callback:
+                            silence_time = time.time() - self.silence_start_time if self.silence_start_time else 0
+                            print(f"[{datetime.now().strftime('%H:%M:%S')}] [AudioMonitor] Вызов колбэка on_sound_restored (тишина была: {silence_time:.1f}с)")
+                            self.on_sound_restored_callback(silence_time)
+                    
+                    # Обновляем предыдущий статус
+                    self.previous_lamp_status = self.lamp_status
                         
             except Exception as e:
                 print(f"[AudioMonitor] Критическая ошибка в цикле мониторинга: {e}")
