@@ -10,6 +10,16 @@ MAX_RETRIES=5
 # Переходим в директорию скрипта
 cd "$(dirname "$0")"
 
+# Получение списка активных VPN-сессий (возвращает Path каждой сессии)
+get_active_session_paths() {
+    openvpn3 sessions-list 2>/dev/null | awk '
+        /^[[:space:]]*Path:/ {
+            sub(/^[[:space:]]*Path:[[:space:]]*/, "");
+            gsub(/[[:space:]]+$/, "");
+            print
+        }'
+}
+
 # Функция логирования
 log_message() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
@@ -17,11 +27,39 @@ log_message() {
 
 # Проверка 1: Проверяем, активна ли сессия VPN
 check_vpn_session() {
-    if openvpn3 sessions-list 2>/dev/null | grep -q "$VPN_CONFIG"; then
+    if get_active_session_paths | grep -q .; then
         return 0  # VPN сессия активна
     else
         return 1  # VPN сессия не активна
     fi
+}
+
+# Завершение всех активных VPN-сессий
+disconnect_vpn_sessions() {
+    session_paths=()
+    while IFS= read -r session_path; do
+        if [ -n "$session_path" ]; then
+            session_paths+=("$session_path")
+        fi
+    done < <(get_active_session_paths)
+
+    if [ ${#session_paths[@]} -eq 0 ]; then
+        return 1
+    fi
+
+    for session_path in "${session_paths[@]}"; do
+        if [ -z "$session_path" ]; then
+            continue
+        fi
+
+        log_message "Отключаем VPN сессию: $session_path"
+        if ! openvpn3 session-manage --session-path "$session_path" --disconnect 2>/dev/null; then
+            log_message "Не удалось корректно отключить сессию: $session_path"
+        fi
+        sleep 2
+    done
+
+    return 0
 }
 
 # Проверка 2: Проверяем реальную доступность через ping
@@ -38,14 +76,10 @@ reconnect_vpn() {
     log_message "Попытка переподключения VPN..."
     
     # Сначала отключаем все активные сессии
-    openvpn3 sessions-list 2>/dev/null | grep "$VPN_CONFIG" >/dev/null
-    if [ $? -eq 0 ]; then
-        log_message "Отключаем существующую сессию VPN..."
-        SESSION_PATH=$(openvpn3 sessions-list | grep "$VPN_CONFIG" -A 1 | grep "Path:" | awk '{print $2}')
-        if [ ! -z "$SESSION_PATH" ]; then
-            openvpn3 session-manage --session-path "$SESSION_PATH" --disconnect 2>/dev/null
-            sleep 3
-        fi
+    if disconnect_vpn_sessions; then
+        log_message "Существующие VPN сессии отключены"
+    else
+        log_message "Активных VPN сессий не обнаружено"
     fi
     
     # Подключаемся заново
