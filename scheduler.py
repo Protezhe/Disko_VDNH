@@ -273,8 +273,9 @@ class DiscoScheduler:
                 result['action'] = 'playlist_generated'
                 result['message'] = 'Плейлист сгенерирован и VLC запущен'
         
-        # Проверяем время закрытия VLC
-        if (current_time.hour == self.stop_time.hour and 
+        # Проверяем время закрытия VLC (только в запланированные дни)
+        if (current_day in self.scheduled_days and
+            current_time.hour == self.stop_time.hour and 
             current_time.minute == self.stop_time.minute):
             
             # Проверяем, не закрывали ли мы VLC уже в эту минуту
