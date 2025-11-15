@@ -5,6 +5,8 @@ ssh orangepi@10.8.0.9
 cd ~/disco_server
 bash start_server.sh
 
+nohup bash start_server.sh > server.log 2>&1 &
+
 python3 -m venv venv
 source venv/bin/activate
 
