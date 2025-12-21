@@ -13,6 +13,7 @@ from threading import Lock
 from playlist_gen import PlaylistGenerator
 from vlc_playlist import VLCPlaylistLauncher
 from telegram_bot import TelegramNotifier
+from config_manager import ConfigManager
 
 
 def get_resource_path(relative_path):
@@ -78,7 +79,8 @@ class DiscoScheduler:
         # Инициализация компонентов
         self.vlc_launcher = VLCPlaylistLauncher()
         self.telegram_bot = TelegramNotifier(self.config_file)
-        
+        self.config_manager = ConfigManager()
+
         # Загружаем настройки
         self.load_settings()
         
@@ -234,14 +236,22 @@ class DiscoScheduler:
         """
         Проверяет, нужно ли запустить задачу.
         Вызывается каждую секунду для проверки расписания.
-        
+
         Returns:
             dict: Информация о выполненных действиях
         """
+        # Проверяем необходимость смены конфигурации (независимо от состояния планировщика)
+        try:
+            config_result = self.config_manager.check_and_switch()
+            if config_result['switched']:
+                self.log(f"🔄 Конфигурация автоматически переключена на: {config_result['current_config']}")
+        except Exception as e:
+            self.log(f'⚠️ Ошибка проверки смены конфигурации: {e}')
+
         # Если планировщик отключен, не выполняем автоматические действия
         if not self.scheduler_enabled:
             return {'action': 'scheduler_disabled', 'message': 'Планировщик отключен'}
-        
+
         now = datetime.now()
         current_day = now.weekday()
         current_time = now.time()
@@ -712,10 +722,10 @@ class DiscoScheduler:
     def set_volume(self, volume):
         """
         Устанавливает громкость VLC.
-        
+
         Args:
             volume (int): Громкость от 0 до 320 (100 = нормальная громкость)
-        
+
         Returns:
             bool: True если команда выполнена успешно
         """
@@ -723,7 +733,7 @@ class DiscoScheduler:
             if not self.vlc_launcher.is_vlc_running():
                 self.log('VLC не запущен, невозможно изменить громкость')
                 return False
-            
+
             success = self.vlc_launcher.set_volume(volume)
             if success:
                 self.log(f'🔊 Громкость установлена: {volume}%')
@@ -732,6 +742,59 @@ class DiscoScheduler:
             return success
         except Exception as e:
             self.log(f'Ошибка изменения громкости: {str(e)}')
+            return False
+
+    def get_config_status(self):
+        """
+        Получает информацию о текущей конфигурации.
+
+        Returns:
+            dict: Информация о конфигурации
+        """
+        try:
+            return self.config_manager.get_status()
+        except Exception as e:
+            self.log(f'Ошибка получения статуса конфигурации: {str(e)}')
+            return None
+
+    def set_config(self, config_name):
+        """
+        Устанавливает конкретную конфигурацию.
+
+        Args:
+            config_name (str): Имя конфигурации ('zhenya' или 'ruslan')
+
+        Returns:
+            bool: True если установка выполнена успешно
+        """
+        try:
+            success = self.config_manager.set_config(config_name)
+            if success:
+                self.log(f'✅ Конфигурация установлена: {config_name}')
+            else:
+                self.log(f'❌ Ошибка установки конфигурации: {config_name}')
+            return success
+        except Exception as e:
+            self.log(f'Ошибка установки конфигурации: {str(e)}')
+            return False
+
+    def switch_config_manually(self):
+        """
+        Принудительно переключает конфигурацию на следующую.
+
+        Returns:
+            bool: True если переключение выполнено успешно
+        """
+        try:
+            success = self.config_manager.force_switch()
+            if success:
+                status = self.config_manager.get_status()
+                self.log(f'✅ Конфигурация переключена на: {status["current_config"]}')
+            else:
+                self.log('❌ Ошибка переключения конфигурации')
+            return success
+        except Exception as e:
+            self.log(f'Ошибка переключения конфигурации: {str(e)}')
             return False
 
 

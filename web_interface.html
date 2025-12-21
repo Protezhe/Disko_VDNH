@@ -975,8 +975,8 @@
                             <div class="status-value" id="telegramStatus">Загрузка...</div>
                         </div>
                         <div class="status-item">
-                            <div class="status-label">Дискотека</div>
-                            <div class="status-value" id="discoStatus">Загрузка...</div>
+                            <div class="status-label">Плейлист</div>
+                            <div class="status-value" id="playlistStatus">Загрузка...</div>
                         </div>
                     </div>
                     <div class="controls-grid">
@@ -988,6 +988,9 @@
                         </button>
                         <button class="btn btn-primary" onclick="toggleTelegram()" id="telegramBtn">
                             Переключить Telegram
+                        </button>
+                        <button class="btn btn-secondary" onclick="switchConfig()" style="background: linear-gradient(135deg, #8b5cf6, #ec4899); border: none;">
+                            Сменить Плейлист
                         </button>
                     </div>
                 </div>
@@ -1412,20 +1415,8 @@
                 schedulerBtn.className = 'btn btn-danger';
             }
 
-            // Статус дискотеки
-            const discoStatus = document.getElementById('discoStatus');
-            const discoStatusText = document.getElementById('discoStatusText');
-            if (status.disco_is_active) {
-                discoStatus.textContent = 'ИГРАЕТ';
-                discoStatus.className = 'status-value status-enabled';
-                discoStatusText.textContent = '🎵 Дискотека играет';
-                discoStatusText.className = 'status playing';
-            } else {
-                discoStatus.textContent = 'ОСТАНОВЛЕНА';
-                discoStatus.className = 'status-value status-disabled';
-                discoStatusText.textContent = '⏹️ Дискотека не играет';
-                discoStatusText.className = 'status stopped';
-            }
+            // Обновляем конфигурацию плейлиста
+            updateConfigStatus();
 
             // Обновляем время
             document.getElementById('currentTime').textContent = status.current_time;
@@ -1941,13 +1932,109 @@
             logContainer.scrollTop = logContainer.scrollHeight;
         }
 
+        // Обновление статуса конфигурации
+        async function updateConfigStatus() {
+            try {
+                const response = await fetch('/api/config/status');
+                if (response.ok) {
+                    const configStatus = await response.json();
+
+                    // Обновляем блок в правой панели
+                    const configStatusText = document.getElementById('configStatusText');
+                    const configWeekInfo = document.getElementById('configWeekInfo');
+
+                    // Обновляем индикатор в статусе системы
+                    const playlistStatus = document.getElementById('playlistStatus');
+
+                    if (configStatus.current_config) {
+                        const configName = configStatus.current_config === 'zhenya' ? 'ЖЕНЯ' : 'РУСЛАН';
+
+                        if (configStatusText) {
+                            configStatusText.textContent = configName;
+                            configStatusText.className = 'status playing';
+                        }
+
+                        if (playlistStatus) {
+                            playlistStatus.textContent = configName;
+                            playlistStatus.className = 'status-value status-enabled';
+                        }
+
+                        if (configWeekInfo && configStatus.current_week) {
+                            configWeekInfo.textContent = `Неделя №${configStatus.current_week}`;
+                        }
+                    } else {
+                        if (configStatusText) {
+                            configStatusText.textContent = 'Неизвестно';
+                            configStatusText.className = 'status stopped';
+                        }
+                        if (playlistStatus) {
+                            playlistStatus.textContent = 'Неизвестно';
+                            playlistStatus.className = 'status-value status-disabled';
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка получения статуса конфигурации:', error);
+            }
+        }
+
+        // Установка конкретной конфигурации
+        async function setConfig(configName) {
+            try {
+                const response = await fetch('/api/config/set', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ config_name: configName })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    log(`✅ ${result.message}`);
+                    showNotification(result.message, 'success');
+                    await updateConfigStatus();
+                } else {
+                    log(`❌ ${result.message}`);
+                    showNotification(result.message, 'error');
+                }
+            } catch (error) {
+                log(`❌ Ошибка установки конфигурации: ${error.message}`);
+                showNotification('Ошибка установки конфигурации', 'error');
+            }
+        }
+
+        // Переключение конфигурации
+        async function switchConfig() {
+            try {
+                const response = await fetch('/api/config/switch', {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    log(`✅ ${result.message}`);
+                    showNotification(result.message, 'success');
+                    await updateConfigStatus();
+                } else {
+                    log(`❌ ${result.message}`);
+                    showNotification(result.message, 'error');
+                }
+            } catch (error) {
+                log(`❌ Ошибка переключения конфигурации: ${error.message}`);
+                showNotification('Ошибка переключения конфигурации', 'error');
+            }
+        }
+
         // Показ уведомлений
         function showNotification(message, type) {
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
             notification.textContent = message;
             document.body.appendChild(notification);
-            
+
             setTimeout(() => {
                 notification.remove();
             }, 3000);

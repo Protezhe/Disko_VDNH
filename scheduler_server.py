@@ -768,6 +768,57 @@ class DiscoServer:
                 })
             except Exception as e:
                 return jsonify({'success': False, 'message': str(e)})
+
+        @self.app.route('/api/config/status', methods=['GET'])
+        def get_config_status():
+            """Получение информации о текущей конфигурации плейлиста"""
+            try:
+                config_status = self.scheduler.get_config_status()
+                if config_status:
+                    return jsonify(config_status)
+                else:
+                    return jsonify({'error': 'Не удалось получить статус конфигурации'})
+            except Exception as e:
+                return jsonify({'error': str(e)})
+
+        @self.app.route('/api/config/switch', methods=['POST'])
+        def switch_config():
+            """Принудительное переключение конфигурации"""
+            try:
+                success = self.scheduler.switch_config_manually()
+                if success:
+                    config_status = self.scheduler.get_config_status()
+                    return jsonify({
+                        'success': True,
+                        'message': f'Конфигурация переключена на: {config_status["current_config"]}',
+                        'current_config': config_status["current_config"]
+                    })
+                else:
+                    return jsonify({'success': False, 'message': 'Ошибка переключения конфигурации'})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+
+        @self.app.route('/api/config/set', methods=['POST'])
+        def set_config():
+            """Установка конкретной конфигурации"""
+            try:
+                data = request.get_json()
+                config_name = data.get('config_name')
+
+                if config_name not in ['zhenya', 'ruslan']:
+                    return jsonify({'success': False, 'message': 'Неверное имя конфигурации. Используйте zhenya или ruslan'})
+
+                success = self.scheduler.set_config(config_name)
+                if success:
+                    return jsonify({
+                        'success': True,
+                        'message': f'Конфигурация установлена: {config_name}',
+                        'current_config': config_name
+                    })
+                else:
+                    return jsonify({'success': False, 'message': 'Ошибка установки конфигурации'})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
         
         @self.app.route('/', methods=['GET'])
         def serve_web_interface():
