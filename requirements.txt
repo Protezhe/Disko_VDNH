@@ -8,3 +8,4 @@ numpy>=1.21.0
 mutagen>=1.45.0
 requests>=2.25.0
 matplotlib>=3.5.0
+pyTelegramBotAPI>=4.0.0
