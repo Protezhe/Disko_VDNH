@@ -934,9 +934,7 @@ class DiscoServer:
         # Отправляем уведомление о запуске сервера в Telegram
         if self.scheduler.telegram_bot and self.scheduler.telegram_bot.enabled and self.scheduler.telegram_bot.notifications_enabled:
             try:
-                # Получаем публичный URL из переменной окружения (если есть)
-                public_url = os.environ.get('PUBLIC_URL')
-                self.scheduler.telegram_bot.notify_server_started(public_url=public_url)
+                self.scheduler.telegram_bot.notify_server_started()
                 self.log("📱 Уведомление о запуске сервера отправлено в Telegram")
             except Exception as e:
                 self.log(f'⚠️ Ошибка отправки Telegram уведомления о запуске: {e}')
