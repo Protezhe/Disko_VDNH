@@ -163,10 +163,10 @@ start_tunnel() {
             log_message "Туннель создан: $tunnel_url"
             echo "$tunnel_url" > "$TUNNEL_URL_FILE"
             rm -f "$output_file"
-            
-            # Отправляем URL в Telegram
-            send_telegram_message "$tunnel_url"
-            
+
+            # Отправляем URL в Telegram (отключено, теперь отправляет только бот)
+            # send_telegram_message "$tunnel_url"
+
             return 0
         fi
     done
