@@ -73,15 +73,33 @@ echo "================================================"
 # Создаем временный файл для захвата вывода SSH
 TUNNEL_OUTPUT=$(mktemp)
 
-# Запускаем SSH туннель и захватываем вывод
-ssh -o StrictHostKeyChecking=no -R 80:localhost:5002 nokey@localhost.run 2>&1 | tee "$TUNNEL_OUTPUT" &
+# Запускаем SSH туннель в фоне, записывая вывод в файл
+ssh -o StrictHostKeyChecking=no -R 80:localhost:5002 nokey@localhost.run > "$TUNNEL_OUTPUT" 2>&1 &
 TUNNEL_PID=$!
 
 # Ждем и ищем URL в выводе
+PUBLIC_URL=""
 for i in {1..30}; do
     sleep 1
+    
+    # Проверяем что сервер еще жив
+    if ! kill -0 $SERVER_PID 2>/dev/null; then
+        echo "Сервер неожиданно остановился!"
+        kill $TUNNEL_PID 2>/dev/null
+        rm -f "$TUNNEL_OUTPUT"
+        deactivate
+        exit 1
+    fi
+    
+    # Проверяем что SSH процесс еще жив
+    if ! kill -0 $TUNNEL_PID 2>/dev/null; then
+        echo "SSH туннель завершился. Вывод:"
+        cat "$TUNNEL_OUTPUT"
+        break
+    fi
+    
     # Ищем URL в выводе (localhost.run выдает URL в формате https://xxxxx.lhr.life или https://xxxxx.lhrtunnel.link)
-    PUBLIC_URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.(lhr\.life|lhrtunnel\.link|localhost\.run)' "$TUNNEL_OUTPUT" | head -1)
+    PUBLIC_URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.(lhr\.life|lhrtunnel\.link|localhost\.run)' "$TUNNEL_OUTPUT" 2>/dev/null | head -1)
     if [ -n "$PUBLIC_URL" ]; then
         echo ""
         echo "================================================"
@@ -109,10 +127,11 @@ done
 rm -f "$TUNNEL_OUTPUT"
 
 if [ -z "$PUBLIC_URL" ]; then
-    echo "Не удалось получить публичный URL"
+    echo "Не удалось получить публичный URL за 30 секунд"
+    echo "Проверьте подключение к интернету"
 fi
 
-# Ждем завершения процессов
+# Ждем завершения сервера (туннель продолжает работать в фоне)
 echo ""
 echo "Сервер работает. Для остановки нажмите Ctrl+C"
 wait $SERVER_PID
