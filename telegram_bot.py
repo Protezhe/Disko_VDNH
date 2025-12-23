@@ -344,15 +344,26 @@ class TelegramNotifier:
         )
         return self.send_message(message)
     
-    def notify_server_started(self):
-        """Уведомление о запуске сервера"""
+    def notify_server_started(self, public_url=None):
+        """
+        Уведомление о запуске сервера
+        
+        Args:
+            public_url (str): Публичная ссылка на сервер (опционально)
+        """
         now = datetime.now()
-        message = (
-            f"🚀 <b>Сервер дискотеки запущен!</b>\n\n"
-            f"⏰ Время: {now.strftime('%d.%m.%Y %H:%M')}\n"
+        message_lines = [
+            f"🚀 <b>Сервер дискотеки запущен!</b>\n",
+            f"⏰ Время: {now.strftime('%d.%m.%Y %H:%M')}\n",
             f"💻 Система планировщика активна\n"
-            f"🎵 Готов к работе!"
-        )
+        ]
+        
+        if public_url:
+            message_lines.append(f"🌐 Публичная ссылка: {public_url}\n")
+        
+        message_lines.append(f"🎵 Готов к работе!")
+        message = "\n".join(message_lines)
+        
         return self.send_message(message)
     
     def add_chat_id(self, chat_id):
