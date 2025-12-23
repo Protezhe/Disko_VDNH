@@ -6,6 +6,8 @@ LOG_FILE="tunnel_monitor.log"
 TUNNEL_PID_FILE="tunnel.pid"
 TUNNEL_URL_FILE="tunnel_url.txt"
 LOCAL_PORT=5002
+SSH_USER="santamozzarella@gmail.com"
+SSH_KEY="$HOME/.ssh/id_rsa"
 SCRIPT_DIR="$(dirname "$0")"
 
 # Переходим в директорию скрипта
@@ -16,8 +18,17 @@ log_message() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
 
-# Проверка, запущен ли туннель
-check_tunnel_running() {
+# Получение текущего URL
+get_current_url() {
+    if [ -f "$TUNNEL_URL_FILE" ]; then
+        cat "$TUNNEL_URL_FILE"
+    else
+        echo ""
+    fi
+}
+
+# Проверка, запущен ли процесс туннеля
+check_tunnel_process() {
     if [ -f "$TUNNEL_PID_FILE" ]; then
         local pid=$(cat "$TUNNEL_PID_FILE")
         if ps -p "$pid" > /dev/null 2>&1; then
@@ -29,10 +40,51 @@ check_tunnel_running() {
     
     # Дополнительная проверка: ищем любой ssh процесс с localhost.run
     if pgrep -f "ssh.*localhost.run" > /dev/null 2>&1; then
+        return 0  # Процесс существует
+    fi
+    
+    return 1  # Процесс не найден
+}
+
+# Проверка, работает ли туннель реально (URL отвечает)
+check_tunnel_health() {
+    local url=$(get_current_url)
+    
+    if [ -z "$url" ]; then
+        return 1  # URL не найден
+    fi
+    
+    # Делаем запрос к туннелю и проверяем ответ
+    local response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url" 2>/dev/null)
+    
+    # Если получили ответ (любой код кроме 000 = timeout)
+    if [ "$response" != "000" ]; then
+        # Проверяем что это не "no tunnel here" (обычно 404 или специфичный текст)
+        local body=$(curl -s --max-time 10 "$url" 2>/dev/null)
+        if echo "$body" | grep -qi "no tunnel"; then
+            log_message "Туннель не работает: 'no tunnel here'"
+            return 1
+        fi
         return 0  # Туннель работает
     fi
     
-    return 1  # Туннель не работает
+    log_message "Туннель не отвечает (timeout)"
+    return 1
+}
+
+# Проверка, запущен ли туннель и работает ли он
+check_tunnel_running() {
+    # Сначала проверяем процесс
+    if ! check_tunnel_process; then
+        return 1
+    fi
+    
+    # Затем проверяем что URL реально работает
+    if ! check_tunnel_health; then
+        return 1
+    fi
+    
+    return 0
 }
 
 # Отправка URL в Telegram через Python
@@ -73,14 +125,14 @@ start_tunnel() {
     # Запускаем ssh в фоне и перенаправляем вывод
     # Используем unbuffer если доступен, иначе stdbuf, иначе напрямую
     if command -v unbuffer &> /dev/null; then
-        unbuffer ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
-            -R 80:localhost:$LOCAL_PORT nokey@localhost.run > "$output_file" 2>&1 &
+        unbuffer ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
+            -R 80:localhost:$LOCAL_PORT "$SSH_USER@localhost.run" > "$output_file" 2>&1 &
     elif command -v stdbuf &> /dev/null; then
-        stdbuf -oL -eL ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
-            -R 80:localhost:$LOCAL_PORT nokey@localhost.run > "$output_file" 2>&1 &
+        stdbuf -oL -eL ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
+            -R 80:localhost:$LOCAL_PORT "$SSH_USER@localhost.run" > "$output_file" 2>&1 &
     else
-        ssh -tt -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
-            -R 80:localhost:$LOCAL_PORT nokey@localhost.run > "$output_file" 2>&1 &
+        ssh -i "$SSH_KEY" -tt -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
+            -R 80:localhost:$LOCAL_PORT "$SSH_USER@localhost.run" > "$output_file" 2>&1 &
     fi
     
     local ssh_pid=$!
@@ -150,15 +202,6 @@ stop_tunnel() {
     log_message "Туннель остановлен"
 }
 
-# Получение текущего URL
-get_current_url() {
-    if [ -f "$TUNNEL_URL_FILE" ]; then
-        cat "$TUNNEL_URL_FILE"
-    else
-        echo ""
-    fi
-}
-
 # Основная логика
 log_message "=== Проверка SSH-туннеля ==="
 
@@ -208,14 +251,26 @@ case "${1:-}" in
         ;;
 esac
 
-# По умолчанию - проверка и запуск если нужно
-if check_tunnel_running; then
-    url=$(get_current_url)
-    log_message "Туннель уже работает. URL: $url"
-    exit 0
+# По умолчанию - проверка и запуск/перезапуск если нужно
+
+# Проверяем процесс
+if check_tunnel_process; then
+    # Процесс есть, проверяем здоровье
+    if check_tunnel_health; then
+        url=$(get_current_url)
+        log_message "Туннель работает нормально. URL: $url"
+        exit 0
+    else
+        # Процесс есть, но туннель не работает - перезапускаем
+        log_message "Туннель не отвечает, перезапуск..."
+        stop_tunnel
+        sleep 2
+        start_tunnel
+        exit $?
+    fi
 fi
 
-# Туннель не работает - запускаем
+# Процесса нет - запускаем
 start_tunnel
 exit $?
 
