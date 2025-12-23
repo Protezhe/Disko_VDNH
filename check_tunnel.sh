@@ -21,14 +21,17 @@ check_tunnel_running() {
     if [ -f "$TUNNEL_PID_FILE" ]; then
         local pid=$(cat "$TUNNEL_PID_FILE")
         if ps -p "$pid" > /dev/null 2>&1; then
-            # Проверяем, что это действительно наш ssh процесс
-            if ps -p "$pid" -o command= 2>/dev/null | grep -q "localhost.run"; then
-                return 0  # Туннель работает
-            fi
+            return 0  # Процесс с таким PID существует
         fi
         # PID файл есть, но процесс не найден - удаляем файл
         rm -f "$TUNNEL_PID_FILE"
     fi
+    
+    # Дополнительная проверка: ищем любой ssh процесс с localhost.run
+    if pgrep -f "ssh.*localhost.run" > /dev/null 2>&1; then
+        return 0  # Туннель работает
+    fi
+    
     return 1  # Туннель не работает
 }
 
@@ -68,8 +71,17 @@ start_tunnel() {
     local output_file=$(mktemp)
     
     # Запускаем ssh в фоне и перенаправляем вывод
-    ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
-        -R 80:localhost:$LOCAL_PORT nokey@localhost.run > "$output_file" 2>&1 &
+    # Используем unbuffer если доступен, иначе stdbuf, иначе напрямую
+    if command -v unbuffer &> /dev/null; then
+        unbuffer ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
+            -R 80:localhost:$LOCAL_PORT nokey@localhost.run > "$output_file" 2>&1 &
+    elif command -v stdbuf &> /dev/null; then
+        stdbuf -oL -eL ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
+            -R 80:localhost:$LOCAL_PORT nokey@localhost.run > "$output_file" 2>&1 &
+    else
+        ssh -tt -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
+            -R 80:localhost:$LOCAL_PORT nokey@localhost.run > "$output_file" 2>&1 &
+    fi
     
     local ssh_pid=$!
     echo $ssh_pid > "$TUNNEL_PID_FILE"
@@ -92,9 +104,8 @@ start_tunnel() {
             return 1
         fi
         
-        # Ищем URL в выводе (localhost.run выдает https://xxx.lhr.life или подобное)
-        # Исключаем admin.localhost.run - это не туннель
-        tunnel_url=$(grep -oE 'https://[a-zA-Z0-9]+\.[a-zA-Z0-9.-]+\.(lhr\.life|lhr\.rocks|localhost\.run)' "$output_file" | grep -v 'admin.localhost.run' | head -1)
+        # Ищем URL в выводе (формат: https://634bfe45ae6b61.lhr.life)
+        tunnel_url=$(grep -oE 'https://[a-zA-Z0-9]+\.lhr\.life' "$output_file" | head -1)
         
         if [ -n "$tunnel_url" ]; then
             log_message "Туннель создан: $tunnel_url"
