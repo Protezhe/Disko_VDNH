@@ -35,7 +35,16 @@ check_tunnel_running() {
 # Отправка URL в Telegram через Python
 send_telegram_message() {
     local url="$1"
-    python3 - "$url" << 'PYTHON_SCRIPT'
+    
+    # Используем Python из виртуального окружения
+    local venv_python="$SCRIPT_DIR/venv/bin/python"
+    if [ ! -f "$venv_python" ]; then
+        venv_python="python3"
+        log_message "Виртуальное окружение не найдено, используем системный Python"
+    fi
+    
+    cd "$SCRIPT_DIR"
+    "$venv_python" - "$url" << 'PYTHON_SCRIPT'
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) or '.')
@@ -84,7 +93,8 @@ start_tunnel() {
         fi
         
         # Ищем URL в выводе (localhost.run выдает https://xxx.lhr.life или подобное)
-        tunnel_url=$(grep -oE 'https://[a-zA-Z0-9.-]+\.(lhr\.life|localhost\.run)[^[:space:]]*' "$output_file" | head -1)
+        # Исключаем admin.localhost.run - это не туннель
+        tunnel_url=$(grep -oE 'https://[a-zA-Z0-9]+\.[a-zA-Z0-9.-]+\.(lhr\.life|lhr\.rocks|localhost\.run)' "$output_file" | grep -v 'admin.localhost.run' | head -1)
         
         if [ -n "$tunnel_url" ]; then
             log_message "Туннель создан: $tunnel_url"
