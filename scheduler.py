@@ -322,15 +322,22 @@ class DiscoScheduler:
         """Генерирует плейлист и запускает VLC."""
         try:
             self.log('Начинаю генерацию плейлиста...')
-            
+
             # Вычисляем длительность дискотеки из расписания
             disco_duration_hours = self.calculate_disco_duration_hours()
             self.log(f'Длительность дискотеки: {disco_duration_hours:.3f} часов ({int(disco_duration_hours)}ч {int((disco_duration_hours % 1) * 60)}м)')
-            
+
+            # Получаем активный конфиг из ConfigManager
+            current_config = self.config_manager.state.get('current_config', 'zhenya')
+            config_filename = f'config_{current_config}.txt'
+            config_path = get_resource_path(config_filename)
+
+            self.log(f'📋 Используется конфиг: {current_config} ({config_filename})')
+
             # Генерируем плейлист
             generator = PlaylistGenerator(
                 music_folder=os.path.join(get_exe_dir(), 'mp3'),
-                config_file=get_resource_path('config.txt')
+                config_file=config_path
             )
             playlist = generator.create_playlist(disco_duration_hours)
             
@@ -378,12 +385,19 @@ class DiscoScheduler:
         """Ручная генерация плейлиста."""
         self.log('Ручная генерация плейлиста...')
         try:
+            # Получаем активный конфиг из ConfigManager
+            current_config = self.config_manager.state.get('current_config', 'zhenya')
+            config_filename = f'config_{current_config}.txt'
+            config_path = get_resource_path(config_filename)
+
+            self.log(f'📋 Используется конфиг: {current_config} ({config_filename})')
+
             generator = PlaylistGenerator(
                 music_folder=os.path.join(get_exe_dir(), 'mp3'),
-                config_file=get_resource_path('config.txt')
+                config_file=config_path
             )
             playlist = generator.create_playlist(self.playlist_duration_hours)
-            
+
             if playlist:
                 playlist_file = generator.save_playlist()
                 info = generator.get_playlist_info()
@@ -392,7 +406,7 @@ class DiscoScheduler:
             else:
                 self.log('❌ Плейлист пуст')
                 return False
-                
+
         except Exception as e:
             self.log(f'❌ Ошибка: {str(e)}')
             return False
