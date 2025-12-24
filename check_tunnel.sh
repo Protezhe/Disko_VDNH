@@ -195,12 +195,17 @@ start_tunnel() {
             # ssh user@xxxxxx.lhr.life
             # password
 
+            log_message "Парсинг SSH туннеля из вывода..."
+
             # Ищем строку вида: ssh user@xxxxx.lhr.life
             local ssh_host=$(grep -oE 'ssh [^@]+@[a-zA-Z0-9]+\.lhr\.life' "$output_file" | head -1)
+            log_message "Найден SSH хост: $ssh_host"
 
             if [ -n "$ssh_host" ]; then
                 # Ищем пароль (обычно следует после строки с ssh)
-                local password=$(grep -A 5 "$ssh_host" "$output_file" | grep -E '^[a-zA-Z0-9|.\-_]+$' | head -1 | tr -d ' ')
+                # Пароль может содержать буквы, цифры, точки, дефисы, подчеркивания и символ |
+                local password=$(grep -A 10 "$ssh_host" "$output_file" | grep -E '^[a-zA-Z0-9|.\-_]+$' | head -1 | tr -d ' ')
+                log_message "Найден пароль: ${password:0:3}***" # логируем только первые 3 символа
 
                 # Формируем вывод: заменяем user на orangepi
                 local final_host=$(echo "$ssh_host" | sed 's/ssh [^@]*@/ssh orangepi@/')
@@ -210,6 +215,9 @@ start_tunnel() {
                 else
                     tunnel_info="${final_host}"
                 fi
+            else
+                log_message "SSH хост не найден в выводе, сохраняем полный вывод в лог"
+                cat "$output_file" >> "$LOG_FILE"
             fi
         fi
 
