@@ -1,11 +1,14 @@
 #!/bin/bash
-# Скрипт создания и проверки SSH-туннеля через localhost.run
+# Универсальный скрипт создания и проверки SSH-туннеля через localhost.run
+# Поддерживает два режима: web (проброс веб-порта) и ssh (проброс SSH)
 
 # Настройки
 LOG_FILE="tunnel_monitor.log"
 TUNNEL_PID_FILE="tunnel.pid"
-TUNNEL_URL_FILE="tunnel_url.txt"
-LOCAL_PORT=5002
+TUNNEL_INFO_FILE="tunnel_info.txt"
+TUNNEL_MODE_FILE="tunnel_mode.txt"
+WEB_PORT=5002
+SSH_PORT=22
 SSH_USER="santamozzarella@gmail.com"
 SSH_KEY="$HOME/.ssh/id_rsa"
 SCRIPT_DIR="$(dirname "$0")"
@@ -18,10 +21,24 @@ log_message() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
 
-# Получение текущего URL
-get_current_url() {
-    if [ -f "$TUNNEL_URL_FILE" ]; then
-        cat "$TUNNEL_URL_FILE"
+# Получение текущего режима туннеля
+get_current_mode() {
+    if [ -f "$TUNNEL_MODE_FILE" ]; then
+        cat "$TUNNEL_MODE_FILE"
+    else
+        echo "web"  # По умолчанию web режим
+    fi
+}
+
+# Установка режима туннеля
+set_mode() {
+    echo "$1" > "$TUNNEL_MODE_FILE"
+}
+
+# Получение текущей информации о туннеле
+get_current_info() {
+    if [ -f "$TUNNEL_INFO_FILE" ]; then
+        cat "$TUNNEL_INFO_FILE"
     else
         echo ""
     fi
@@ -37,117 +54,122 @@ check_tunnel_process() {
         # PID файл есть, но процесс не найден - удаляем файл
         rm -f "$TUNNEL_PID_FILE"
     fi
-    
-    # Дополнительная проверка: ищем любой ssh процесс с localhost.run
+
+    # Дополнительная проверка: ищем ssh процесс с localhost.run
     if pgrep -f "ssh.*localhost.run" > /dev/null 2>&1; then
         return 0  # Процесс существует
     fi
-    
+
     return 1  # Процесс не найден
 }
 
-# Проверка, работает ли туннель реально (URL отвечает)
-check_tunnel_health() {
-    local url=$(get_current_url)
-    
+# Проверка работоспособности web туннеля
+check_web_tunnel_health() {
+    local url=$(get_current_info)
+
     if [ -z "$url" ]; then
         return 1  # URL не найден
     fi
-    
+
     # Делаем запрос к туннелю и проверяем ответ
     local response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url" 2>/dev/null)
-    
+
     # Если получили ответ (любой код кроме 000 = timeout)
     if [ "$response" != "000" ]; then
-        # Проверяем что это не "no tunnel here" (обычно 404 или специфичный текст)
+        # Проверяем что это не "no tunnel here"
         local body=$(curl -s --max-time 10 "$url" 2>/dev/null)
         if echo "$body" | grep -qi "no tunnel"; then
-            log_message "Туннель не работает: 'no tunnel here'"
             return 1
         fi
         return 0  # Туннель работает
     fi
-    
-    log_message "Туннель не отвечает (timeout)"
+
     return 1
 }
 
-# Проверка, запущен ли туннель и работает ли он
-check_tunnel_running() {
-    # Сначала проверяем процесс
-    if ! check_tunnel_process; then
-        return 1
-    fi
-    
-    # Затем проверяем что URL реально работает
-    if ! check_tunnel_health; then
-        return 1
-    fi
-    
-    return 0
-}
+# Отправка уведомления в Telegram через Python
+send_telegram_notification() {
+    local mode="$1"
+    local info="$2"
 
-# Отправка URL в Telegram через Python
-send_telegram_message() {
-    local url="$1"
-    
-    # Используем Python из виртуального окружения
     local venv_python="$SCRIPT_DIR/venv/bin/python"
     if [ ! -f "$venv_python" ]; then
         venv_python="python3"
-        log_message "Виртуальное окружение не найдено, используем системный Python"
     fi
-    
+
     cd "$SCRIPT_DIR"
-    "$venv_python" - "$url" << 'PYTHON_SCRIPT'
+    "$venv_python" - "$mode" "$info" << 'PYTHON_SCRIPT'
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) or '.')
 from telegram_bot import TelegramNotifier
 
-url = sys.argv[1] if len(sys.argv) > 1 else "URL не определен"
+mode = sys.argv[1] if len(sys.argv) > 1 else "unknown"
+info = sys.argv[2] if len(sys.argv) > 2 else "Информация не определена"
+
 notifier = TelegramNotifier()
-message = f"<b>Туннель создан!</b>\n\nПубличная ссылка:\n{url}"
-if notifier.send_message(message):
-    print("[Tunnel] Ссылка отправлена в Telegram")
+
+if mode == "web":
+    message = f"<b>Веб-туннель создан!</b>\n\nПубличная ссылка:\n{info}"
+elif mode == "ssh":
+    message = f"<b>SSH туннель создан!</b>\n\nКоманда для подключения:\n<code>{info}</code>"
 else:
-    print("[Tunnel] Не удалось отправить ссылку в Telegram")
+    message = f"<b>Туннель создан!</b>\n\n{info}"
+
+if notifier.send_message(message):
+    print("[Tunnel] Уведомление отправлено в Telegram")
+else:
+    print("[Tunnel] Не удалось отправить уведомление в Telegram")
 PYTHON_SCRIPT
 }
 
 # Запуск туннеля
 start_tunnel() {
-    log_message "Запуск SSH-туннеля..."
-    
+    local mode="${1:-$(get_current_mode)}"
+
+    log_message "Запуск туннеля в режиме: $mode"
+    set_mode "$mode"
+
     # Создаем временный файл для вывода ssh
     local output_file=$(mktemp)
-    
-    # Запускаем ssh в фоне и перенаправляем вывод
-    # Используем unbuffer если доступен, иначе stdbuf, иначе напрямую
+
+    # Определяем параметры в зависимости от режима
+    local ssh_args=""
+    if [ "$mode" = "web" ]; then
+        ssh_args="-R 80:localhost:$WEB_PORT"
+    elif [ "$mode" = "ssh" ]; then
+        ssh_args="-R 0:localhost:$SSH_PORT"
+    else
+        log_message "Неизвестный режим: $mode"
+        rm -f "$output_file"
+        return 1
+    fi
+
+    # Запускаем ssh в фоне
     if command -v unbuffer &> /dev/null; then
         unbuffer ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
-            -R 80:localhost:$LOCAL_PORT "$SSH_USER@localhost.run" > "$output_file" 2>&1 &
+            $ssh_args "$SSH_USER@localhost.run" > "$output_file" 2>&1 &
     elif command -v stdbuf &> /dev/null; then
         stdbuf -oL -eL ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
-            -R 80:localhost:$LOCAL_PORT "$SSH_USER@localhost.run" > "$output_file" 2>&1 &
+            $ssh_args "$SSH_USER@localhost.run" > "$output_file" 2>&1 &
     else
         ssh -i "$SSH_KEY" -tt -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
-            -R 80:localhost:$LOCAL_PORT "$SSH_USER@localhost.run" > "$output_file" 2>&1 &
+            $ssh_args "$SSH_USER@localhost.run" > "$output_file" 2>&1 &
     fi
-    
+
     local ssh_pid=$!
     echo $ssh_pid > "$TUNNEL_PID_FILE"
-    
+
     log_message "SSH процесс запущен с PID: $ssh_pid"
-    
-    # Ждем появления URL в выводе (максимум 30 секунд)
+
+    # Ждем появления информации о туннеле в выводе (максимум 30 секунд)
     local counter=0
-    local tunnel_url=""
-    
+    local tunnel_info=""
+
     while [ $counter -lt 30 ]; do
         sleep 1
         counter=$((counter + 1))
-        
+
         # Проверяем, что процесс еще жив
         if ! ps -p $ssh_pid > /dev/null 2>&1; then
             log_message "SSH процесс завершился преждевременно"
@@ -155,31 +177,42 @@ start_tunnel() {
             rm -f "$output_file" "$TUNNEL_PID_FILE"
             return 1
         fi
-        
-        # Ищем URL в выводе (формат: https://634bfe45ae6b61.lhr.life)
-        tunnel_url=$(grep -oE 'https://[a-zA-Z0-9]+\.lhr\.life' "$output_file" | head -1)
-        
-        if [ -n "$tunnel_url" ]; then
-            log_message "Туннель создан: $tunnel_url"
-            echo "$tunnel_url" > "$TUNNEL_URL_FILE"
+
+        # Ищем информацию в зависимости от режима
+        if [ "$mode" = "web" ]; then
+            # Ищем URL вида https://xxxxx.lhr.life
+            tunnel_info=$(grep -oE 'https://[a-zA-Z0-9]+\.lhr\.life' "$output_file" | head -1)
+        elif [ "$mode" = "ssh" ]; then
+            # Ищем порт и хост для SSH
+            local tunnel_port=$(grep -oP 'ssh -p \K[0-9]+' "$output_file" | head -1)
+            local tunnel_host=$(grep -oP 'ssh -p [0-9]+ \K[^@]+@[^\s]+' "$output_file" | head -1)
+
+            if [ -n "$tunnel_port" ] && [ -n "$tunnel_host" ]; then
+                tunnel_info="ssh -p $tunnel_port $tunnel_host"
+            fi
+        fi
+
+        if [ -n "$tunnel_info" ]; then
+            log_message "Туннель ($mode) создан: $tunnel_info"
+            echo "$tunnel_info" > "$TUNNEL_INFO_FILE"
             rm -f "$output_file"
 
-            # Отправляем URL в Telegram (отключено, теперь отправляет только бот)
-            # send_telegram_message "$tunnel_url"
+            # Отправляем уведомление (отключено, отправляет только бот по запросу)
+            # send_telegram_notification "$mode" "$tunnel_info"
 
             return 0
         fi
     done
-    
-    log_message "Не удалось получить URL туннеля за 30 секунд"
+
+    log_message "Не удалось получить информацию о туннеле за 30 секунд"
     log_message "Вывод SSH:"
     cat "$output_file" >> "$LOG_FILE"
     rm -f "$output_file"
-    
-    # Убиваем процесс если URL не получен
+
+    # Убиваем процесс если информация не получена
     kill $ssh_pid 2>/dev/null
     rm -f "$TUNNEL_PID_FILE"
-    
+
     return 1
 }
 
@@ -198,12 +231,26 @@ stop_tunnel() {
         fi
         rm -f "$TUNNEL_PID_FILE"
     fi
-    rm -f "$TUNNEL_URL_FILE"
+    rm -f "$TUNNEL_INFO_FILE"
     log_message "Туннель остановлен"
 }
 
-# Основная логика
-log_message "=== Проверка SSH-туннеля ==="
+# Переключение режима туннеля
+switch_mode() {
+    local new_mode="$1"
+    local current_mode=$(get_current_mode)
+
+    if [ "$new_mode" = "$current_mode" ]; then
+        log_message "Туннель уже работает в режиме $new_mode"
+        return 0
+    fi
+
+    log_message "Переключение туннеля с $current_mode на $new_mode"
+    stop_tunnel
+    sleep 2
+    start_tunnel "$new_mode"
+    return $?
+}
 
 # Обработка аргументов командной строки
 case "${1:-}" in
@@ -218,59 +265,76 @@ case "${1:-}" in
         exit $?
         ;;
     status)
-        if check_tunnel_running; then
-            url=$(get_current_url)
-            log_message "Туннель работает. URL: $url"
-            echo "$url"
+        if check_tunnel_process; then
+            info=$(get_current_info)
+            mode=$(get_current_mode)
+            log_message "Туннель ($mode) работает: $info"
+            echo "$info"
             exit 0
         else
             log_message "Туннель не запущен"
             exit 1
         fi
         ;;
-    url)
-        url=$(get_current_url)
-        if [ -n "$url" ]; then
-            echo "$url"
+    info|url)
+        info=$(get_current_info)
+        if [ -n "$info" ]; then
+            echo "$info"
             exit 0
         else
-            echo "URL не найден"
+            echo "Информация о туннеле не найдена"
             exit 1
         fi
         ;;
-    send)
-        # Отправить текущий URL в Telegram
-        url=$(get_current_url)
-        if [ -n "$url" ]; then
-            send_telegram_message "$url"
-            exit 0
+    mode)
+        echo $(get_current_mode)
+        exit 0
+        ;;
+    web)
+        # Запустить или переключить на web режим
+        if check_tunnel_process; then
+            switch_mode "web"
         else
-            log_message "Нет активного URL для отправки"
-            exit 1
+            start_tunnel "web"
         fi
+        exit $?
+        ;;
+    ssh)
+        # Запустить или переключить на ssh режим
+        if check_tunnel_process; then
+            switch_mode "ssh"
+        else
+            start_tunnel "ssh"
+        fi
+        exit $?
         ;;
 esac
 
-# По умолчанию - проверка и запуск/перезапуск если нужно
-
-# Проверяем процесс
+# По умолчанию - проверка и запуск если нужно (в текущем режиме)
 if check_tunnel_process; then
-    # Процесс есть, проверяем здоровье
-    if check_tunnel_health; then
-        url=$(get_current_url)
-        log_message "Туннель работает нормально. URL: $url"
-        exit 0
+    mode=$(get_current_mode)
+
+    # Для web режима дополнительно проверяем здоровье
+    if [ "$mode" = "web" ]; then
+        if check_web_tunnel_health; then
+            info=$(get_current_info)
+            log_message "Туннель ($mode) работает нормально: $info"
+            exit 0
+        else
+            # Процесс есть, но туннель не работает - перезапускаем
+            log_message "Туннель не отвечает, перезапуск..."
+            stop_tunnel
+            sleep 2
+            start_tunnel "$mode"
+            exit $?
+        fi
     else
-        # Процесс есть, но туннель не работает - перезапускаем
-        log_message "Туннель не отвечает, перезапуск..."
-        stop_tunnel
-        sleep 2
-        start_tunnel
-        exit $?
+        info=$(get_current_info)
+        log_message "Туннель ($mode) работает: $info"
+        exit 0
     fi
 fi
 
-# Процесса нет - запускаем
+# Процесса нет - запускаем в текущем режиме
 start_tunnel
 exit $?
-

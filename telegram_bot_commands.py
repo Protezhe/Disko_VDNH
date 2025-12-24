@@ -38,8 +38,7 @@ class TunnelBot:
         self.bot_token = None
         self.bot = None
         self.admin_users = []
-        self.check_tunnel_script = os.path.join(get_exe_dir(), 'check_tunnel.sh')
-        self.ssh_tunnel_script = os.path.join(get_exe_dir(), 'check_ssh_tunnel.sh')
+        self.tunnel_script = os.path.join(get_exe_dir(), 'check_tunnel.sh')
 
         self.load_config()
 
@@ -73,22 +72,27 @@ class TunnelBot:
         except Exception as e:
             print(f"[Tunnel Bot] Ошибка при загрузке конфигурации: {e}")
 
-    def run_tunnel_command(self, command):
+    def run_tunnel_command(self, command, mode=None):
         """
         Выполнить команду для управления туннелем
 
         Args:
-            command (str): Команда (status, restart, send, url)
+            command (str): Команда (status, restart, url, mode, web, ssh)
+            mode (str): Опциональный режим для переключения (web или ssh)
 
         Returns:
             tuple: (success: bool, output: str)
         """
         try:
-            if not os.path.exists(self.check_tunnel_script):
-                return False, f"Скрипт туннеля не найден: {self.check_tunnel_script}"
+            if not os.path.exists(self.tunnel_script):
+                return False, f"Скрипт туннеля не найден: {self.tunnel_script}"
+
+            cmd = ['bash', self.tunnel_script, command]
+            if mode:
+                cmd.append(mode)
 
             result = subprocess.run(
-                ['bash', self.check_tunnel_script, command],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=60
@@ -139,7 +143,7 @@ class TunnelBot:
 
         @self.bot.message_handler(commands=['tunnel'])
         def get_tunnel_url(message):
-            """Получить URL туннеля (автоматически запустит если не работает)"""
+            """Получить URL веб-туннеля (автоматически переключит на web режим)"""
             if not self.is_admin(message.from_user):
                 self.bot.reply_to(message, "❌ У вас нет доступа к этой команде")
                 print(f"[Tunnel Bot] Отказ в доступе для пользователя {message.from_user.id}")
@@ -147,93 +151,35 @@ class TunnelBot:
 
             print(f"[Tunnel Bot] Команда /tunnel от пользователя {message.from_user.id}")
 
-            # Сначала отправляем сообщение о процессе
-            status_msg = self.bot.reply_to(message, "🔍 Проверяю туннель...")
+            status_msg = self.bot.reply_to(message, "🔍 Проверяю/переключаю туннель на web режим...")
 
-            # Проверяем статус туннеля
-            success, output = self.run_tunnel_command('status')
+            # Переключаем на web режим (если туннель работает, он переключится, если нет - запустится)
+            success, output = self.run_tunnel_command('web')
 
-            if success and output:
-                # Туннель работает, получаем URL
+            if success:
+                # Получаем URL
                 url_success, url = self.run_tunnel_command('url')
-                if url_success and url and url != "URL не найден":
+                if url_success and url and url != "Информация о туннеле не найдена":
                     response = (
-                        f"✅ <b>Туннель работает</b>\n\n"
+                        f"✅ <b>Веб-туннель работает</b>\n\n"
                         f"🔗 Публичная ссылка:\n{url}\n\n"
                         f"⏰ Время: {datetime.now().strftime('%H:%M:%S')}"
                     )
-                    self.bot.edit_message_text(
-                        response,
-                        chat_id=status_msg.chat.id,
-                        message_id=status_msg.message_id,
-                        parse_mode='HTML'
-                    )
                 else:
-                    # URL не найден, перезапускаем
-                    self.bot.edit_message_text(
-                        "⚠️ URL не найден, перезапускаю туннель...",
-                        chat_id=status_msg.chat.id,
-                        message_id=status_msg.message_id
-                    )
-                    restart_success, restart_output = self.run_tunnel_command('restart')
-                    if restart_success:
-                        url_success, url = self.run_tunnel_command('url')
-                        if url_success and url and url != "URL не найден":
-                            response = (
-                                f"✅ <b>Туннель перезапущен</b>\n\n"
-                                f"🔗 Публичная ссылка:\n{url}\n\n"
-                                f"⏰ Время: {datetime.now().strftime('%H:%M:%S')}"
-                            )
-                        else:
-                            response = "❌ Туннель перезапущен, но URL не получен. Попробуйте еще раз через минуту."
-                    else:
-                        response = f"❌ Ошибка перезапуска: {restart_output}"
-
-                    self.bot.edit_message_text(
-                        response,
-                        chat_id=status_msg.chat.id,
-                        message_id=status_msg.message_id,
-                        parse_mode='HTML'
-                    )
+                    response = "⚠️ Туннель запущен, но URL не получен. Попробуйте еще раз через минуту."
             else:
-                # Туннель не работает, автоматически запускаем
-                self.bot.edit_message_text(
-                    "🔄 Туннель не работает, запускаю...\nЭто может занять до 30 секунд.",
-                    chat_id=status_msg.chat.id,
-                    message_id=status_msg.message_id
-                )
+                response = f"❌ Ошибка запуска веб-туннеля:\n{output}"
 
-                restart_success, restart_output = self.run_tunnel_command('restart')
-
-                if restart_success:
-                    url_success, url = self.run_tunnel_command('url')
-                    if url_success and url and url != "URL не найден":
-                        response = (
-                            f"✅ <b>Туннель запущен</b>\n\n"
-                            f"🔗 Публичная ссылка:\n{url}\n\n"
-                            f"⏰ Время: {datetime.now().strftime('%H:%M:%S')}"
-                        )
-                    else:
-                        response = (
-                            f"⚠️ <b>Туннель запущен, но URL не получен</b>\n\n"
-                            f"Попробуйте еще раз через минуту"
-                        )
-                else:
-                    response = (
-                        f"❌ <b>Ошибка запуска туннеля</b>\n\n"
-                        f"Детали: {restart_output}"
-                    )
-
-                self.bot.edit_message_text(
-                    response,
-                    chat_id=status_msg.chat.id,
-                    message_id=status_msg.message_id,
-                    parse_mode='HTML'
-                )
+            self.bot.edit_message_text(
+                response,
+                chat_id=status_msg.chat.id,
+                message_id=status_msg.message_id,
+                parse_mode='HTML'
+            )
 
         @self.bot.message_handler(commands=['ssh'])
         def get_ssh_tunnel(message):
-            """Получить SSH туннель для подключения к серверу"""
+            """Получить SSH туннель для подключения к серверу (автоматически переключит на ssh режим)"""
             if not self.is_admin(message.from_user):
                 self.bot.reply_to(message, "❌ У вас нет доступа к этой команде")
                 print(f"[Tunnel Bot] Отказ в доступе для пользователя {message.from_user.id}")
@@ -241,103 +187,33 @@ class TunnelBot:
 
             print(f"[Tunnel Bot] Команда /ssh от пользователя {message.from_user.id}")
 
-            status_msg = self.bot.reply_to(message, "🔍 Проверяю SSH туннель...")
+            status_msg = self.bot.reply_to(message, "🔍 Проверяю/переключаю туннель на SSH режим...")
 
-            # Проверяем существование скрипта
-            if not os.path.exists(self.ssh_tunnel_script):
-                response = (
-                    "❌ <b>Скрипт SSH туннеля не найден</b>\n\n"
-                    "Создайте файл check_ssh_tunnel.sh"
-                )
-                self.bot.edit_message_text(
-                    response,
-                    chat_id=status_msg.chat.id,
-                    message_id=status_msg.message_id,
-                    parse_mode='HTML'
-                )
-                return
+            # Переключаем на ssh режим (если туннель работает, он переключится, если нет - запустится)
+            success, output = self.run_tunnel_command('ssh')
 
-            # Используем тот же метод run_tunnel_command, но для SSH скрипта
-            try:
-                # Проверяем статус SSH туннеля
-                result = subprocess.run(
-                    ['bash', self.ssh_tunnel_script, 'status'],
-                    capture_output=True,
-                    text=True,
-                    timeout=60
-                )
-
-                if result.returncode == 0 and result.stdout.strip():
-                    # Туннель работает
-                    ssh_info = result.stdout.strip()
+            if success:
+                # Получаем информацию о подключении
+                info_success, ssh_info = self.run_tunnel_command('url')
+                if info_success and ssh_info and ssh_info != "Информация о туннеле не найдена":
                     response = (
                         f"✅ <b>SSH туннель активен</b>\n\n"
-                        f"🔐 Данные для подключения:\n"
+                        f"🔐 Команда для подключения:\n"
                         f"<code>{ssh_info}</code>\n\n"
                         f"⏰ Время: {datetime.now().strftime('%H:%M:%S')}\n\n"
-                        f"📝 Пример подключения:\n"
-                        f"<code>ssh -p PORT user@HOST</code>"
+                        f"📝 Используйте свои SSH ключи для подключения"
                     )
                 else:
-                    # Туннель не работает, запускаем
-                    self.bot.edit_message_text(
-                        "🔄 SSH туннель не работает, запускаю...\nЭто может занять до 30 секунд.",
-                        chat_id=status_msg.chat.id,
-                        message_id=status_msg.message_id
-                    )
+                    response = "⚠️ SSH туннель запущен, но данные для подключения не получены. Попробуйте еще раз через минуту."
+            else:
+                response = f"❌ Ошибка запуска SSH туннеля:\n{output}"
 
-                    result = subprocess.run(
-                        ['bash', self.ssh_tunnel_script, 'restart'],
-                        capture_output=True,
-                        text=True,
-                        timeout=60
-                    )
-
-                    if result.returncode == 0:
-                        # Получаем информацию после запуска
-                        result = subprocess.run(
-                            ['bash', self.ssh_tunnel_script, 'url'],
-                            capture_output=True,
-                            text=True,
-                            timeout=60
-                        )
-
-                        if result.returncode == 0 and result.stdout.strip():
-                            ssh_info = result.stdout.strip()
-                            response = (
-                                f"✅ <b>SSH туннель запущен</b>\n\n"
-                                f"🔐 Данные для подключения:\n"
-                                f"<code>{ssh_info}</code>\n\n"
-                                f"⏰ Время: {datetime.now().strftime('%H:%M:%S')}\n\n"
-                                f"📝 Пример подключения:\n"
-                                f"<code>ssh -p PORT user@HOST</code>"
-                            )
-                        else:
-                            response = "⚠️ SSH туннель запущен, но данные для подключения не получены"
-                    else:
-                        response = f"❌ Ошибка запуска SSH туннеля:\n{result.stderr}"
-
-                self.bot.edit_message_text(
-                    response,
-                    chat_id=status_msg.chat.id,
-                    message_id=status_msg.message_id,
-                    parse_mode='HTML'
-                )
-
-            except subprocess.TimeoutExpired:
-                response = "❌ Команда выполнялась слишком долго (таймаут 60 сек)"
-                self.bot.edit_message_text(
-                    response,
-                    chat_id=status_msg.chat.id,
-                    message_id=status_msg.message_id
-                )
-            except Exception as e:
-                response = f"❌ Ошибка: {e}"
-                self.bot.edit_message_text(
-                    response,
-                    chat_id=status_msg.chat.id,
-                    message_id=status_msg.message_id
-                )
+            self.bot.edit_message_text(
+                response,
+                chat_id=status_msg.chat.id,
+                message_id=status_msg.message_id,
+                parse_mode='HTML'
+            )
 
 
     def start_polling(self):
