@@ -74,16 +74,20 @@ class DiscoServer:
         
         # Инициализация планировщика
         self.scheduler = DiscoScheduler(config_file=self.config_file, log_callback=self.log)
-        
+
         # Инициализация мониторинга звука
         self.audio_monitor = None
         self.init_audio_monitor()
-        
+
+        # Запуск телеграм-бота в отдельном потоке
+        self.telegram_bot_thread = None
+        self.init_telegram_bot()
+
         # Инициализация Flask приложения
         self.app = Flask(__name__)
         CORS(self.app)
         self.setup_routes()
-        
+
         # Обработка сигналов завершения
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -115,7 +119,27 @@ class DiscoServer:
                 
         except Exception as e:
             self.log(f"❌ Ошибка инициализации мониторинга звука: {e}")
-    
+
+    def init_telegram_bot(self):
+        """Инициализация и запуск телеграм-бота в отдельном потоке"""
+        try:
+            if self.scheduler.telegram_bot and self.scheduler.telegram_bot.bot:
+                self.log("🤖 Запуск телеграм-бота в отдельном потоке...")
+
+                def run_bot():
+                    try:
+                        self.scheduler.telegram_bot.start_polling()
+                    except Exception as e:
+                        self.log(f"❌ Ошибка в работе телеграм-бота: {e}")
+
+                self.telegram_bot_thread = Thread(target=run_bot, daemon=True, name="TelegramBot")
+                self.telegram_bot_thread.start()
+                self.log("✅ Телеграм-бот запущен (уведомления + команды)")
+            else:
+                self.log("ℹ️ Телеграм-бот не активирован")
+        except Exception as e:
+            self.log(f"❌ Ошибка запуска телеграм-бота: {e}")
+
     def on_silence_detected(self, level):
         """Обработчик обнаружения тишины"""
         self.log(f"🔇 Обнаружена тишина (уровень: {level:.6f})")

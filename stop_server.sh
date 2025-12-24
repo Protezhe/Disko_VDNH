@@ -10,36 +10,25 @@ cd "$(dirname "$0")"
 
 STOPPED_SOMETHING=false
 
-# Останавливаем телеграм-бота
+# Очищаем старые PID файлы если есть
 if [ -f "telegram_bot.pid" ]; then
-    BOT_PID=$(cat telegram_bot.pid)
-    if ps -p $BOT_PID > /dev/null 2>&1; then
-        echo "🤖 Останавливаем телеграм-бота (PID: $BOT_PID)..."
-        kill $BOT_PID 2>/dev/null
-        sleep 2
-        if ps -p $BOT_PID > /dev/null 2>&1; then
-            kill -9 $BOT_PID 2>/dev/null
-        fi
-        echo "✅ Телеграм-бот остановлен"
-        STOPPED_SOMETHING=true
-    fi
     rm -f telegram_bot.pid
-else
-    # Ищем процесс по имени если нет PID файла
-    BOT_PID=$(ps aux | grep '[t]elegram_bot_commands.py' | awk '{print $2}')
-    if [ -n "$BOT_PID" ]; then
-        echo "🤖 Останавливаем телеграм-бота (PID: $BOT_PID)..."
-        kill $BOT_PID 2>/dev/null
-        sleep 2
-        if ps -p $BOT_PID > /dev/null 2>&1; then
-            kill -9 $BOT_PID 2>/dev/null
-        fi
-        echo "✅ Телеграм-бот остановлен"
-        STOPPED_SOMETHING=true
-    fi
 fi
 
-# Ищем процесс scheduler_server.py
+# Ищем и останавливаем отдельный процесс телеграм-бота (если запущен по старинке)
+BOT_PID=$(ps aux | grep '[t]elegram_bot_commands.py' | awk '{print $2}')
+if [ -n "$BOT_PID" ]; then
+    echo "🤖 Найден отдельный процесс телеграм-бота (PID: $BOT_PID)..."
+    kill $BOT_PID 2>/dev/null
+    sleep 2
+    if ps -p $BOT_PID > /dev/null 2>&1; then
+        kill -9 $BOT_PID 2>/dev/null
+    fi
+    echo "✅ Телеграм-бот остановлен"
+    STOPPED_SOMETHING=true
+fi
+
+# Ищем процесс scheduler_server.py (телеграм-бот теперь встроен в него)
 PID=$(ps aux | grep '[s]cheduler_server.py' | awk '{print $2}')
 
 if [ -z "$PID" ]; then
@@ -66,7 +55,7 @@ else
         echo "❌ Не удалось остановить сервер (PID: $PID)"
         exit 1
     else
-        echo "✅ Сервер успешно остановлен"
+        echo "✅ Сервер успешно остановлен (включая встроенный телеграм-бот)"
         STOPPED_SOMETHING=true
     fi
 fi

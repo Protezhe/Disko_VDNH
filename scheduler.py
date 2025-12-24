@@ -12,7 +12,7 @@ from datetime import datetime, time, timedelta
 from threading import Lock
 from playlist_gen import PlaylistGenerator
 from vlc_playlist import VLCPlaylistLauncher
-from telegram_bot import TelegramNotifier
+from telegram_bot_commands import TelegramNotifier
 from config_manager import ConfigManager
 
 
