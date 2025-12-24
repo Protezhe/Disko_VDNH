@@ -228,6 +228,16 @@ start_tunnel() {
     log_message "Не удалось получить информацию о туннеле за 30 секунд"
     log_message "Вывод SSH:"
     cat "$output_file" >> "$LOG_FILE"
+
+    # Проверяем на типичные ошибки
+    if grep -q "Permission denied" "$output_file"; then
+        log_message "ОШИБКА: Проблема с SSH ключом или аутентификацией"
+    elif grep -q "Address already in use" "$output_file"; then
+        log_message "ОШИБКА: Порт уже используется"
+    elif grep -q "Connection refused" "$output_file"; then
+        log_message "ОШИБКА: Не удалось подключиться к localhost.run"
+    fi
+
     rm -f "$output_file"
 
     # Убиваем процесс если информация не получена
