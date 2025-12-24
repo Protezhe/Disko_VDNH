@@ -47,10 +47,10 @@ class PlaylistGenerator:
     def create_playlist(self, duration_hours, debug=False):
         """
         Создает плейлист с указанной длительностью в часах.
-        
+
         Args:
             duration_hours (float): Длительность плейлиста в часах
-            
+
         Returns:
             list: Список треков в плейлисте
         """
@@ -58,21 +58,28 @@ class PlaylistGenerator:
         if debug:
             print(f"Начинаю генерацию плейлиста на {duration_hours} ч")
         max_duration = duration_hours * 60 * 60  # Переводим часы в секунды
-        
+
         self.playlist = []
         total_duration = 0
         track_history = {}
-        
+
+        # Счетчик пустых итераций для защиты от зацикливания
+        empty_iterations = 0
+        max_empty_iterations = 10
+
         while total_duration < max_duration:
+            tracks_added_in_iteration = 0
+
             for folder in config:
                 folder_path = os.path.join(self.music_folder, folder)
-                
+
                 if folder not in track_history:
                     track_history[folder] = self.get_tracks_from_folder(folder_path)
                     if not track_history[folder]:
+                        print(f"⚠️ Папка '{folder}' пуста или не найдена: {folder_path}")
                         continue
                     random.shuffle(track_history[folder])
-                
+
                 if track_history[folder]:
                     track = track_history[folder].pop(0)
                     try:
@@ -81,19 +88,33 @@ class PlaylistGenerator:
                     except Exception as e:
                         print(f"Ошибка при получении информации о треке {track}: {e}")
                         continue
-                    
+
                     if total_duration + track_length > max_duration:
                         if debug:
                             print("Достигнута требуемая длительность. Завершение генерации.")
                         return self.playlist
-                    
+
                     self.playlist.append(track)
                     total_duration += track_length
+                    tracks_added_in_iteration += 1
                     if debug:
                         minutes = track_length // 60
                         seconds = track_length % 60
                         print(f"Добавлен: [{folder}] {os.path.basename(track)} ({minutes:02d}:{seconds:02d})")
-        
+
+            # Проверка на зацикливание: если несколько итераций подряд не добавили ни одного трека
+            if tracks_added_in_iteration == 0:
+                empty_iterations += 1
+                if empty_iterations >= max_empty_iterations:
+                    print(f"❌ Не удалось набрать требуемую длительность плейлиста.")
+                    print(f"   Требуется: {max_duration/3600:.2f} ч, собрано: {total_duration/3600:.2f} ч")
+                    print(f"   Треков в плейлисте: {len(self.playlist)}")
+                    if len(self.playlist) == 0:
+                        print(f"   Проверьте, что в конфигурации указаны существующие папки с MP3 файлами.")
+                    break
+            else:
+                empty_iterations = 0
+
         return self.playlist
     
     def get_next_playlist_filename(self, directory, base_filename='playlist', extension='.m3u'):
