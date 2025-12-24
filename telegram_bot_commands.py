@@ -135,15 +135,14 @@ class TunnelBot:
             help_text = (
                 "🎵 <b>Бот управления сервером дискотеки</b>\n\n"
                 "Доступные команды:\n"
-                "/tunnel - Получить ссылку на туннель\n"
-                "/ssh - Получить SSH доступ к серверу"
+                "/tunnel - Получить ссылку на веб-интерфейс"
             )
             self.bot.reply_to(message, help_text, parse_mode='HTML')
             print(f"[Tunnel Bot] Команда /start от пользователя {message.from_user.id}")
 
         @self.bot.message_handler(commands=['tunnel'])
         def get_tunnel_url(message):
-            """Получить URL веб-туннеля (автоматически переключит на web режим)"""
+            """Получить URL веб-туннеля"""
             if not self.is_admin(message.from_user):
                 self.bot.reply_to(message, "❌ У вас нет доступа к этой команде")
                 print(f"[Tunnel Bot] Отказ в доступе для пользователя {message.from_user.id}")
@@ -151,13 +150,13 @@ class TunnelBot:
 
             print(f"[Tunnel Bot] Команда /tunnel от пользователя {message.from_user.id}")
 
-            status_msg = self.bot.reply_to(message, "🔍 Проверяю/переключаю туннель на web режим...")
+            status_msg = self.bot.reply_to(message, "🔍 Проверяю туннель...")
 
-            # Переключаем на web режим (если туннель работает, он переключится, если нет - запустится)
-            success, output = self.run_tunnel_command('web')
+            # Проверяем статус туннеля
+            success, output = self.run_tunnel_command('status')
 
-            if success:
-                # Получаем URL
+            if success and output:
+                # Туннель работает, получаем URL
                 url_success, url = self.run_tunnel_command('url')
                 if url_success and url and url != "Информация о туннеле не найдена":
                     response = (
@@ -166,47 +165,53 @@ class TunnelBot:
                         f"⏰ Время: {datetime.now().strftime('%H:%M:%S')}"
                     )
                 else:
-                    response = "⚠️ Туннель запущен, но URL не получен. Попробуйте еще раз через минуту."
-            else:
-                response = f"❌ Ошибка запуска веб-туннеля:\n{output}"
-
-            self.bot.edit_message_text(
-                response,
-                chat_id=status_msg.chat.id,
-                message_id=status_msg.message_id,
-                parse_mode='HTML'
-            )
-
-        @self.bot.message_handler(commands=['ssh'])
-        def get_ssh_tunnel(message):
-            """Получить SSH туннель для подключения к серверу (автоматически переключит на ssh режим)"""
-            if not self.is_admin(message.from_user):
-                self.bot.reply_to(message, "❌ У вас нет доступа к этой команде")
-                print(f"[Tunnel Bot] Отказ в доступе для пользователя {message.from_user.id}")
-                return
-
-            print(f"[Tunnel Bot] Команда /ssh от пользователя {message.from_user.id}")
-
-            status_msg = self.bot.reply_to(message, "🔍 Проверяю/переключаю туннель на SSH режим...")
-
-            # Переключаем на ssh режим (если туннель работает, он переключится, если нет - запустится)
-            success, output = self.run_tunnel_command('ssh')
-
-            if success:
-                # Получаем информацию о подключении
-                info_success, ssh_info = self.run_tunnel_command('url')
-                if info_success and ssh_info and ssh_info != "Информация о туннеле не найдена":
-                    # ssh_info содержит две строки: команда и пароль
-                    response = (
-                        f"✅ <b>SSH туннель активен</b>\n\n"
-                        f"🔐 Данные для подключения:\n"
-                        f"<code>{ssh_info}</code>\n\n"
-                        f"⏰ Время: {datetime.now().strftime('%H:%M:%S')}"
+                    # URL не найден, перезапускаем
+                    self.bot.edit_message_text(
+                        "⚠️ URL не найден, перезапускаю туннель...",
+                        chat_id=status_msg.chat.id,
+                        message_id=status_msg.message_id
                     )
-                else:
-                    response = "⚠️ SSH туннель запущен, но данные для подключения не получены. Попробуйте еще раз через минуту."
+                    restart_success, restart_output = self.run_tunnel_command('restart')
+                    if restart_success:
+                        url_success, url = self.run_tunnel_command('url')
+                        if url_success and url and url != "Информация о туннеле не найдена":
+                            response = (
+                                f"✅ <b>Туннель перезапущен</b>\n\n"
+                                f"🔗 Публичная ссылка:\n{url}\n\n"
+                                f"⏰ Время: {datetime.now().strftime('%H:%M:%S')}"
+                            )
+                        else:
+                            response = "❌ Туннель перезапущен, но URL не получен. Попробуйте еще раз через минуту."
+                    else:
+                        response = f"❌ Ошибка перезапуска: {restart_output}"
             else:
-                response = f"❌ Ошибка запуска SSH туннеля:\n{output}"
+                # Туннель не работает, автоматически запускаем
+                self.bot.edit_message_text(
+                    "🔄 Туннель не работает, запускаю...\nЭто может занять до 30 секунд.",
+                    chat_id=status_msg.chat.id,
+                    message_id=status_msg.message_id
+                )
+
+                restart_success, restart_output = self.run_tunnel_command('restart')
+
+                if restart_success:
+                    url_success, url = self.run_tunnel_command('url')
+                    if url_success and url and url != "Информация о туннеле не найдена":
+                        response = (
+                            f"✅ <b>Туннель запущен</b>\n\n"
+                            f"🔗 Публичная ссылка:\n{url}\n\n"
+                            f"⏰ Время: {datetime.now().strftime('%H:%M:%S')}"
+                        )
+                    else:
+                        response = (
+                            f"⚠️ <b>Туннель запущен, но URL не получен</b>\n\n"
+                            f"Попробуйте еще раз через минуту"
+                        )
+                else:
+                    response = (
+                        f"❌ <b>Ошибка запуска туннеля</b>\n\n"
+                        f"Детали: {restart_output}"
+                    )
 
             self.bot.edit_message_text(
                 response,
