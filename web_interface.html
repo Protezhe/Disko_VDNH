@@ -649,6 +649,31 @@
             box-shadow: 0 0 20px rgba(107, 114, 128, 0.3);
         }
 
+        .nav-btn {
+            padding: 12px 24px;
+            border: 2px solid rgba(139, 92, 246, 0.5);
+            border-radius: 12px;
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+
+        .nav-btn.active {
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
+        }
+
+        .nav-btn:not(.active) {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
+            color: #c4b5fd;
+        }
+
+        .nav-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -913,6 +938,10 @@
     <div class="container">
         <div class="header">
             <h1>🎵 Дискотека - Панель Управления 🎵</h1>
+            <div style="display: flex; gap: 15px; justify-content: center; margin-top: 15px;">
+                <a href="/" class="nav-btn active">🎵 Панель управления</a>
+                <a href="/admin" class="nav-btn">⚙️ Администрирование</a>
+            </div>
         </div>
 
         <!-- Мобильная лампа (скрыта на десктопе) -->

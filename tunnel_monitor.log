@@ -25,3 +25,8 @@ https://localhost.run/docs/
 ** your connection id is ff268bc7-96eb-4b3b-b18c-cac82d08a87e, please mention it if you send me a message about an issue. **
 
 santamozzarella@gmail.com@localhost.run: Permission denied (publickey).
+[2025-12-24 13:12:26] Туннель не запущен
+[2025-12-24 13:12:27] Туннель остановлен
+[2025-12-24 13:12:29] Запуск туннеля...
+[2025-12-24 13:12:29] ОШИБКА: SSH ключ не найден: /Users/evgeniy/.ssh/id_rsa
+[2025-12-24 13:12:29] Создайте SSH ключ командой: ssh-keygen -t rsa -b 4096

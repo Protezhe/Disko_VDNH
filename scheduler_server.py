@@ -844,6 +844,163 @@ class DiscoServer:
             except Exception as e:
                 return jsonify({'success': False, 'message': str(e)})
         
+        @self.app.route('/api/config/content', methods=['GET'])
+        def get_config_content():
+            """Получение содержимого конфигурационного файла"""
+            try:
+                config_name = request.args.get('name', 'zhenya')
+                if config_name not in ['zhenya', 'ruslan']:
+                    return jsonify({'success': False, 'message': 'Неверное имя конфигурации'})
+
+                config_path = os.path.join(get_exe_dir(), f'config_{config_name}.txt')
+                if not os.path.exists(config_path):
+                    return jsonify({'success': False, 'message': f'Файл {config_name} не найден'})
+
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+
+                return jsonify({'success': True, 'content': content, 'name': config_name})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+
+        @self.app.route('/api/config/save', methods=['POST'])
+        def save_config_content():
+            """Сохранение содержимого конфигурационного файла"""
+            try:
+                data = request.get_json()
+                config_name = data.get('name')
+                content = data.get('content')
+
+                if config_name not in ['zhenya', 'ruslan']:
+                    return jsonify({'success': False, 'message': 'Неверное имя конфигурации'})
+
+                if content is None:
+                    return jsonify({'success': False, 'message': 'Содержимое не указано'})
+
+                config_path = os.path.join(get_exe_dir(), f'config_{config_name}.txt')
+
+                # Создаем резервную копию
+                if os.path.exists(config_path):
+                    backup_path = config_path + '.bak'
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        backup_content = f.read()
+                    with open(backup_path, 'w', encoding='utf-8') as f:
+                        f.write(backup_content)
+
+                # Сохраняем новое содержимое
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+
+                self.log(f"💾 Конфигурация {config_name} сохранена")
+                return jsonify({'success': True, 'message': f'Конфигурация {config_name} сохранена'})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+
+        @self.app.route('/api/mp3/folders', methods=['GET'])
+        def get_mp3_folders():
+            """Получение списка папок с mp3"""
+            try:
+                mp3_dir = os.path.join(get_exe_dir(), 'mp3')
+                if not os.path.exists(mp3_dir):
+                    return jsonify({'success': False, 'message': 'Папка mp3 не найдена'})
+
+                folders = []
+                for item in os.listdir(mp3_dir):
+                    item_path = os.path.join(mp3_dir, item)
+                    if os.path.isdir(item_path):
+                        # Подсчитываем количество mp3 файлов
+                        mp3_count = len([f for f in os.listdir(item_path) if f.lower().endswith('.mp3')])
+                        folders.append({
+                            'name': item,
+                            'path': item_path,
+                            'mp3_count': mp3_count
+                        })
+
+                folders.sort(key=lambda x: x['name'])
+                return jsonify({'success': True, 'folders': folders})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+
+        @self.app.route('/api/mp3/files', methods=['GET'])
+        def get_mp3_files():
+            """Получение списка mp3 файлов в папке"""
+            try:
+                folder_name = request.args.get('folder')
+                if not folder_name:
+                    return jsonify({'success': False, 'message': 'Папка не указана'})
+
+                folder_path = os.path.join(get_exe_dir(), 'mp3', folder_name)
+                if not os.path.exists(folder_path):
+                    return jsonify({'success': False, 'message': 'Папка не найдена'})
+
+                files = []
+                for item in os.listdir(folder_path):
+                    if item.lower().endswith('.mp3'):
+                        item_path = os.path.join(folder_path, item)
+                        file_size = os.path.getsize(item_path)
+                        files.append({
+                            'name': item,
+                            'size': file_size,
+                            'size_mb': round(file_size / (1024 * 1024), 2)
+                        })
+
+                files.sort(key=lambda x: x['name'])
+                return jsonify({'success': True, 'files': files, 'folder': folder_name})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+
+        @self.app.route('/api/mp3/delete', methods=['POST'])
+        def delete_mp3_file():
+            """Удаление mp3 файла"""
+            try:
+                data = request.get_json()
+                folder_name = data.get('folder')
+                file_name = data.get('file')
+
+                if not folder_name or not file_name:
+                    return jsonify({'success': False, 'message': 'Папка или файл не указаны'})
+
+                file_path = os.path.join(get_exe_dir(), 'mp3', folder_name, file_name)
+                if not os.path.exists(file_path):
+                    return jsonify({'success': False, 'message': 'Файл не найден'})
+
+                os.remove(file_path)
+                self.log(f"🗑️ Удален файл: {folder_name}/{file_name}")
+                return jsonify({'success': True, 'message': f'Файл {file_name} удален'})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+
+        @self.app.route('/api/mp3/upload', methods=['POST'])
+        def upload_mp3_file():
+            """Загрузка mp3 файла"""
+            try:
+                folder_name = request.form.get('folder')
+                if not folder_name:
+                    return jsonify({'success': False, 'message': 'Папка не указана'})
+
+                if 'file' not in request.files:
+                    return jsonify({'success': False, 'message': 'Файл не найден'})
+
+                file = request.files['file']
+                if file.filename == '':
+                    return jsonify({'success': False, 'message': 'Файл не выбран'})
+
+                if not file.filename.lower().endswith('.mp3'):
+                    return jsonify({'success': False, 'message': 'Разрешены только MP3 файлы'})
+
+                folder_path = os.path.join(get_exe_dir(), 'mp3', folder_name)
+                if not os.path.exists(folder_path):
+                    return jsonify({'success': False, 'message': 'Папка не найдена'})
+
+                file_path = os.path.join(folder_path, file.filename)
+                file.save(file_path)
+
+                file_size = os.path.getsize(file_path)
+                self.log(f"📤 Загружен файл: {folder_name}/{file.filename} ({round(file_size / (1024 * 1024), 2)} MB)")
+                return jsonify({'success': True, 'message': f'Файл {file.filename} загружен'})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+
         @self.app.route('/', methods=['GET'])
         def serve_web_interface():
             """Обслуживание веб-интерфейса"""
@@ -851,7 +1008,7 @@ class DiscoServer:
                 web_interface_path = os.path.join(get_exe_dir(), 'web_interface.html')
                 self.log(f"🔍 Поиск веб-интерфейса: {web_interface_path}")
                 self.log(f"📁 Файл существует: {os.path.exists(web_interface_path)}")
-                
+
                 if os.path.exists(web_interface_path):
                     self.log("✅ Загружаем веб-интерфейс Hello Kitty")
                     with open(web_interface_path, 'r', encoding='utf-8') as f:
@@ -885,6 +1042,22 @@ class DiscoServer:
             except Exception as e:
                 self.log(f"❌ Ошибка загрузки веб-интерфейса: {str(e)}")
                 return Response(f"Ошибка загрузки веб-интерфейса: {str(e)}", mimetype='text/plain', status=500)
+
+        @self.app.route('/admin', methods=['GET'])
+        def serve_admin_interface():
+            """Обслуживание интерфейса администрирования"""
+            try:
+                admin_interface_path = os.path.join(get_exe_dir(), 'admin.html')
+
+                if os.path.exists(admin_interface_path):
+                    self.log("✅ Загружаем интерфейс администрирования")
+                    with open(admin_interface_path, 'r', encoding='utf-8') as f:
+                        return Response(f.read(), mimetype='text/html')
+                else:
+                    return Response("Интерфейс администрирования не найден", mimetype='text/plain', status=404)
+            except Exception as e:
+                self.log(f"❌ Ошибка загрузки интерфейса администрирования: {str(e)}")
+                return Response(f"Ошибка загрузки: {str(e)}", mimetype='text/plain', status=500)
     
     def run_scheduler_loop(self):
         """Основной цикл проверки расписания"""
