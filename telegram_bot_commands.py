@@ -107,9 +107,15 @@ class TunnelBot:
         except Exception as e:
             return False, f"Ошибка выполнения команды: {e}"
 
-    def is_admin(self, user_id):
+    def is_admin(self, user):
         """Проверка, является ли пользователь администратором"""
-        return user_id in self.admin_users
+        # Проверяем по ID
+        if user.id in self.admin_users:
+            return True
+        # Проверяем по username (без @)
+        if user.username and user.username in self.admin_users:
+            return True
+        return False
 
     def setup_handlers(self):
         """Настройка обработчиков команд"""
@@ -117,7 +123,7 @@ class TunnelBot:
         @self.bot.message_handler(commands=['start'])
         def send_start(message):
             """Приветствие и список команд"""
-            if not self.is_admin(message.from_user.id):
+            if not self.is_admin(message.from_user):
                 self.bot.reply_to(message, "❌ У вас нет доступа к этому боту")
                 print(f"[Tunnel Bot] Отказ в доступе для пользователя {message.from_user.id}")
                 return
@@ -134,7 +140,7 @@ class TunnelBot:
         @self.bot.message_handler(commands=['tunnel'])
         def get_tunnel_url(message):
             """Получить URL туннеля (автоматически запустит если не работает)"""
-            if not self.is_admin(message.from_user.id):
+            if not self.is_admin(message.from_user):
                 self.bot.reply_to(message, "❌ У вас нет доступа к этой команде")
                 print(f"[Tunnel Bot] Отказ в доступе для пользователя {message.from_user.id}")
                 return
@@ -228,7 +234,7 @@ class TunnelBot:
         @self.bot.message_handler(commands=['ssh'])
         def get_ssh_tunnel(message):
             """Получить SSH туннель для подключения к серверу"""
-            if not self.is_admin(message.from_user.id):
+            if not self.is_admin(message.from_user):
                 self.bot.reply_to(message, "❌ У вас нет доступа к этой команде")
                 print(f"[Tunnel Bot] Отказ в доступе для пользователя {message.from_user.id}")
                 return
