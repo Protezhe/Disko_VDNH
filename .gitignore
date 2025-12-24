@@ -15,6 +15,16 @@ scheduler_config.json
 Disco.ovpn
 ssh.txt
 
+# Tunnel runtime files
+tunnel_mode.txt
+tunnel_info.txt
+tunnel.pid
+tunnel_monitor.log
+tunnel_url.txt
+ssh_tunnel_info.txt
+ssh_tunnel.pid
+ssh_tunnel_monitor.log
+
 # Python cache
 __pycache__/
 *.py[cod]
