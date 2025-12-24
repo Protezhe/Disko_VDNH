@@ -190,12 +190,26 @@ start_tunnel() {
             # Ищем URL вида https://xxxxx.lhr.life
             tunnel_info=$(grep -oE 'https://[a-zA-Z0-9]+\.lhr\.life' "$output_file" | head -1)
         elif [ "$mode" = "ssh" ]; then
-            # Ищем строку вида: ssh -p 12345 user@localhost.run
-            # Используем sed вместо grep -P для совместимости с macOS
-            local ssh_line=$(grep -E 'ssh -p [0-9]+ ' "$output_file" | head -1)
-            if [ -n "$ssh_line" ]; then
-                # Извлекаем всю команду ssh
-                tunnel_info=$(echo "$ssh_line" | sed -n 's/.*\(ssh -p [0-9]* [^@]*@[^ ]*\).*/\1/p')
+            # Для SSH ищем хост и пароль
+            # Формат вывода localhost.run:
+            # ssh user@xxxxxx.lhr.life
+            # password
+
+            # Ищем строку вида: ssh user@xxxxx.lhr.life
+            local ssh_host=$(grep -oE 'ssh [^@]+@[a-zA-Z0-9]+\.lhr\.life' "$output_file" | head -1)
+
+            if [ -n "$ssh_host" ]; then
+                # Ищем пароль (обычно следует после строки с ssh)
+                local password=$(grep -A 5 "$ssh_host" "$output_file" | grep -E '^[a-zA-Z0-9|.\-_]+$' | head -1 | tr -d ' ')
+
+                # Формируем вывод: заменяем user на orangepi
+                local final_host=$(echo "$ssh_host" | sed 's/ssh [^@]*@/ssh orangepi@/')
+
+                if [ -n "$password" ]; then
+                    tunnel_info="${final_host}"$'\n'"${password}"
+                else
+                    tunnel_info="${final_host}"
+                fi
             fi
         fi
 
