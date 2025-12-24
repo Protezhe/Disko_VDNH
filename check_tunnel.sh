@@ -130,6 +130,13 @@ start_tunnel() {
     log_message "Запуск туннеля в режиме: $mode"
     set_mode "$mode"
 
+    # Проверяем наличие SSH ключа
+    if [ ! -f "$SSH_KEY" ]; then
+        log_message "ОШИБКА: SSH ключ не найден: $SSH_KEY"
+        log_message "Создайте SSH ключ командой: ssh-keygen -t rsa -b 4096"
+        return 1
+    fi
+
     # Создаем временный файл для вывода ssh
     local output_file=$(mktemp)
 
@@ -183,12 +190,12 @@ start_tunnel() {
             # Ищем URL вида https://xxxxx.lhr.life
             tunnel_info=$(grep -oE 'https://[a-zA-Z0-9]+\.lhr\.life' "$output_file" | head -1)
         elif [ "$mode" = "ssh" ]; then
-            # Ищем порт и хост для SSH
-            local tunnel_port=$(grep -oP 'ssh -p \K[0-9]+' "$output_file" | head -1)
-            local tunnel_host=$(grep -oP 'ssh -p [0-9]+ \K[^@]+@[^\s]+' "$output_file" | head -1)
-
-            if [ -n "$tunnel_port" ] && [ -n "$tunnel_host" ]; then
-                tunnel_info="ssh -p $tunnel_port $tunnel_host"
+            # Ищем строку вида: ssh -p 12345 user@localhost.run
+            # Используем sed вместо grep -P для совместимости с macOS
+            local ssh_line=$(grep -E 'ssh -p [0-9]+ ' "$output_file" | head -1)
+            if [ -n "$ssh_line" ]; then
+                # Извлекаем всю команду ssh
+                tunnel_info=$(echo "$ssh_line" | sed -n 's/.*\(ssh -p [0-9]* [^@]*@[^ ]*\).*/\1/p')
             fi
         fi
 
