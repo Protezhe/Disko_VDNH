@@ -443,12 +443,10 @@ class DiscoScheduler:
         try:
             # Устанавливаем флаг типа закрытия
             self.is_automatic_close = is_automatic
-            
+
             closed_count = self.vlc_launcher.close_all_vlc()
-            
+
             if closed_count > 0:
-                # Сбрасываем флаг активности дискотеки
-                self.disco_is_active = False
                 # Отправляем уведомление о завершении дискотеки только если это автоматическое закрытие
                 if send_notification and is_automatic:
                     try:
@@ -456,9 +454,9 @@ class DiscoScheduler:
                     except Exception as e:
                         self.log(f'⚠️ Ошибка отправки Telegram уведомления: {e}')
                 return True
-            
+
             return False
-                
+
         except Exception as e:
             self.log(f'❌ Ошибка при закрытии VLC: {str(e)}')
             return False

@@ -21,6 +21,7 @@ from scheduler import DiscoScheduler
 from soundcheck import SoundCheck
 from soundcheck_v2 import SoundCheckV2
 from audio_monitor import AudioMonitor, get_audio_devices_list
+from cleanup_utils import cleanup_on_startup
 
 
 def get_exe_dir():
@@ -54,7 +55,11 @@ class DiscoServer:
     def __init__(self):
         self.config_file = os.path.join(get_exe_dir(), 'scheduler_config.json')
         self.running = True
-        
+
+        # Очистка служебных файлов при запуске
+        music_folder = os.path.join(get_exe_dir(), 'mp3')
+        cleanup_on_startup(music_folder)
+
         # Lock для безопасной записи в конфиг из разных потоков
         self.config_lock = Lock()
         
