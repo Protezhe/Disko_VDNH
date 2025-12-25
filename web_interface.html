@@ -1552,6 +1552,18 @@
             
             // Обновляем состояние кнопок навигации по трекам
             updateTrackControlsState(trackInfo);
+            
+            // Обновляем статус дискотеки
+            const discoStatusText = document.getElementById('discoStatusText');
+            if (discoStatusText) {
+                if (trackInfo.is_available && trackInfo.is_playing) {
+                    discoStatusText.textContent = '▶️ Дискотека играет';
+                    discoStatusText.className = 'status playing';
+                } else {
+                    discoStatusText.textContent = '⏹️ Дискотека не играет';
+                    discoStatusText.className = 'status stopped';
+                }
+            }
         }
 
         // Вспомогательная функция для обновления элементов трека
