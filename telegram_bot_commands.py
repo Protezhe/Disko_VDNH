@@ -543,7 +543,7 @@ class DiscoTelegramBot:
 
         @self.bot.message_handler(commands=['tunnel'])
         def get_tunnel_url(message):
-            """Получить URL веб-туннеля"""
+            """Получить URL веб-туннеля (всегда перезапускает туннель)"""
             if not self.is_admin(message.from_user):
                 self.bot.reply_to(message, "❌ У вас нет доступа к этой команде")
                 print(f"[Tunnel Bot] Отказ в доступе для пользователя {message.from_user.id}")
@@ -551,68 +551,29 @@ class DiscoTelegramBot:
 
             print(f"[Tunnel Bot] Команда /tunnel от пользователя {message.from_user.id}")
 
-            status_msg = self.bot.reply_to(message, "🔍 Проверяю туннель...")
+            status_msg = self.bot.reply_to(message, "🔄 Перезапускаю туннель...\nЭто может занять до 30 секунд.")
 
-            # Проверяем статус туннеля
-            success, output = self.run_tunnel_command('status')
+            # Всегда перезапускаем туннель
+            restart_success, restart_output = self.run_tunnel_command('restart')
 
-            if success and output:
-                # Туннель работает, получаем URL
+            if restart_success:
                 url_success, url = self.run_tunnel_command('url')
                 if url_success and url and url != "Информация о туннеле не найдена":
                     response = (
-                        f"✅ <b>Веб-туннель работает</b>\n\n"
+                        f"✅ <b>Туннель перезапущен</b>\n\n"
                         f"🔗 Публичная ссылка:\n{url}\n\n"
                         f"⏰ Время: {datetime.now().strftime('%H:%M:%S')}"
                     )
                 else:
-                    # URL не найден, перезапускаем
-                    self.bot.edit_message_text(
-                        "⚠️ URL не найден, перезапускаю туннель...",
-                        chat_id=status_msg.chat.id,
-                        message_id=status_msg.message_id
-                    )
-                    restart_success, restart_output = self.run_tunnel_command('restart')
-                    if restart_success:
-                        url_success, url = self.run_tunnel_command('url')
-                        if url_success and url and url != "Информация о туннеле не найдена":
-                            response = (
-                                f"✅ <b>Туннель перезапущен</b>\n\n"
-                                f"🔗 Публичная ссылка:\n{url}\n\n"
-                                f"⏰ Время: {datetime.now().strftime('%H:%M:%S')}"
-                            )
-                        else:
-                            response = "❌ Туннель перезапущен, но URL не получен. Попробуйте еще раз через минуту."
-                    else:
-                        response = f"❌ Ошибка перезапуска: {restart_output}"
-            else:
-                # Туннель не работает, автоматически запускаем
-                self.bot.edit_message_text(
-                    "🔄 Туннель не работает, запускаю...\nЭто может занять до 30 секунд.",
-                    chat_id=status_msg.chat.id,
-                    message_id=status_msg.message_id
-                )
-
-                restart_success, restart_output = self.run_tunnel_command('restart')
-
-                if restart_success:
-                    url_success, url = self.run_tunnel_command('url')
-                    if url_success and url and url != "Информация о туннеле не найдена":
-                        response = (
-                            f"✅ <b>Туннель запущен</b>\n\n"
-                            f"🔗 Публичная ссылка:\n{url}\n\n"
-                            f"⏰ Время: {datetime.now().strftime('%H:%M:%S')}"
-                        )
-                    else:
-                        response = (
-                            f"⚠️ <b>Туннель запущен, но URL не получен</b>\n\n"
-                            f"Попробуйте еще раз через минуту"
-                        )
-                else:
                     response = (
-                        f"❌ <b>Ошибка запуска туннеля</b>\n\n"
-                        f"Детали: {restart_output}"
+                        f"⚠️ <b>Туннель перезапущен, но URL не получен</b>\n\n"
+                        f"Попробуйте еще раз через минуту"
                     )
+            else:
+                response = (
+                    f"❌ <b>Ошибка перезапуска туннеля</b>\n\n"
+                    f"Детали: {restart_output}"
+                )
 
             self.bot.edit_message_text(
                 response,
