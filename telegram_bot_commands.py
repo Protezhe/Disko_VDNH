@@ -17,6 +17,7 @@ import telebot
 import requests
 from datetime import datetime, timedelta
 from mutagen.mp3 import MP3
+from requests.exceptions import RequestException, Timeout, ConnectionError
 
 
 def get_exe_dir():
@@ -152,13 +153,15 @@ class DiscoTelegramBot:
     # Методы для отправки уведомлений (TelegramNotifier)
     # ============================================
 
-    def send_message(self, message, parse_mode='HTML'):
+    def send_message(self, message, parse_mode='HTML', max_retries=3, base_timeout=30):
         """
-        Отправка сообщения в Telegram всем подписчикам
+        Отправка сообщения в Telegram всем подписчикам с механизмом повторных попыток
 
         Args:
             message (str): Текст сообщения
             parse_mode (str): Режим парсинга (HTML, Markdown)
+            max_retries (int): Максимальное количество попыток отправки
+            base_timeout (int): Базовый таймаут для запроса в секундах
 
         Returns:
             bool: True если сообщение отправлено успешно хотя бы одному получателю
@@ -174,34 +177,72 @@ class DiscoTelegramBot:
         api_url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
 
         for chat_id in self.chat_ids:
-            try:
-                payload = {
-                    'chat_id': chat_id,
-                    'text': message,
-                    'parse_mode': parse_mode
-                }
+            chat_success = False
 
-                response = requests.post(api_url, json=payload, timeout=10)
+            for attempt in range(max_retries):
+                try:
+                    # Увеличиваем таймаут с каждой попыткой (экспоненциальная задержка)
+                    current_timeout = base_timeout * (2 ** attempt)
 
-                if response.status_code == 200:
-                    success = True
-                    print(f"[Disco Bot] Сообщение отправлено в чат {chat_id}")
-                else:
-                    print(f"[Disco Bot] Ошибка отправки в чат {chat_id}: {response.status_code} - {response.text}")
+                    payload = {
+                        'chat_id': chat_id,
+                        'text': message,
+                        'parse_mode': parse_mode
+                    }
 
-            except Exception as e:
-                print(f"[Disco Bot] Ошибка при отправке сообщения в чат {chat_id}: {e}")
+                    if attempt > 0:
+                        print(f"[Disco Bot] Попытка {attempt + 1}/{max_retries} отправки в чат {chat_id} (таймаут: {current_timeout}с)")
+
+                    response = requests.post(api_url, json=payload, timeout=current_timeout)
+
+                    if response.status_code == 200:
+                        chat_success = True
+                        success = True
+                        print(f"[Disco Bot] Сообщение отправлено в чат {chat_id}")
+                        break
+                    else:
+                        print(f"[Disco Bot] Ошибка отправки в чат {chat_id}: {response.status_code} - {response.text}")
+                        # Не повторяем при ошибках сервера (не связанных с сетью)
+                        if response.status_code < 500:
+                            break
+
+                except (Timeout, ConnectionError) as e:
+                    # Сетевые ошибки и таймауты - пробуем снова
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt  # Экспоненциальная задержка: 1, 2, 4 секунды
+                        print(f"[Disco Bot] Таймаут/сетевая ошибка для чата {chat_id}: {e}")
+                        print(f"[Disco Bot] Повторная попытка через {wait_time}с...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"[Disco Bot] Не удалось отправить в чат {chat_id} после {max_retries} попыток: {e}")
+
+                except RequestException as e:
+                    # Другие ошибки requests
+                    print(f"[Disco Bot] Ошибка запроса для чата {chat_id}: {e}")
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt
+                        print(f"[Disco Bot] Повторная попытка через {wait_time}с...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"[Disco Bot] Не удалось отправить в чат {chat_id} после {max_retries} попыток")
+
+                except Exception as e:
+                    # Неожиданные ошибки
+                    print(f"[Disco Bot] Неожиданная ошибка при отправке в чат {chat_id}: {e}")
+                    break
 
         return success
 
-    def send_photo(self, image_path, caption=None, parse_mode='HTML'):
+    def send_photo(self, image_path, caption=None, parse_mode='HTML', max_retries=3, base_timeout=30):
         """
-        Отправка изображения в Telegram с подписью
+        Отправка изображения в Telegram с подписью и механизмом повторных попыток
 
         Args:
             image_path (str): Путь к изображению
             caption (str): Подпись к фото
             parse_mode (str): Режим парсинга подписи
+            max_retries (int): Максимальное количество попыток отправки
+            base_timeout (int): Базовый таймаут для запроса в секундах
 
         Returns:
             bool: True если отправлено хотя бы одному получателю
@@ -219,32 +260,67 @@ class DiscoTelegramBot:
         api_url = f"https://api.telegram.org/bot{self.bot_token}/sendPhoto"
 
         for chat_id in self.chat_ids:
-            try:
-                with open(image_path, 'rb') as img_file:
-                    files = {'photo': img_file}
-                    data = {'chat_id': chat_id}
-                    if caption:
-                        data['caption'] = caption
-                        data['parse_mode'] = parse_mode
-                    response = requests.post(api_url, data=data, files=files, timeout=20)
-                if response.status_code == 200:
-                    success = True
-                    print(f"[Disco Bot] Фото отправлено в чат {chat_id}")
-                else:
-                    print(f"[Disco Bot] Ошибка отправки фото в чат {chat_id}: {response.status_code} - {response.text}")
-            except Exception as e:
-                print(f"[Disco Bot] Ошибка при отправке фото в чат {chat_id}: {e}")
+            chat_success = False
+
+            for attempt in range(max_retries):
+                try:
+                    current_timeout = base_timeout * (2 ** attempt)
+
+                    if attempt > 0:
+                        print(f"[Disco Bot] Попытка {attempt + 1}/{max_retries} отправки фото в чат {chat_id} (таймаут: {current_timeout}с)")
+
+                    with open(image_path, 'rb') as img_file:
+                        files = {'photo': img_file}
+                        data = {'chat_id': chat_id}
+                        if caption:
+                            data['caption'] = caption
+                            data['parse_mode'] = parse_mode
+                        response = requests.post(api_url, data=data, files=files, timeout=current_timeout)
+
+                    if response.status_code == 200:
+                        chat_success = True
+                        success = True
+                        print(f"[Disco Bot] Фото отправлено в чат {chat_id}")
+                        break
+                    else:
+                        print(f"[Disco Bot] Ошибка отправки фото в чат {chat_id}: {response.status_code} - {response.text}")
+                        if response.status_code < 500:
+                            break
+
+                except (Timeout, ConnectionError) as e:
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt
+                        print(f"[Disco Bot] Таймаут/сетевая ошибка при отправке фото в чат {chat_id}: {e}")
+                        print(f"[Disco Bot] Повторная попытка через {wait_time}с...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"[Disco Bot] Не удалось отправить фото в чат {chat_id} после {max_retries} попыток: {e}")
+
+                except RequestException as e:
+                    print(f"[Disco Bot] Ошибка запроса при отправке фото в чат {chat_id}: {e}")
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt
+                        print(f"[Disco Bot] Повторная попытка через {wait_time}с...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"[Disco Bot] Не удалось отправить фото в чат {chat_id} после {max_retries} попыток")
+
+                except Exception as e:
+                    print(f"[Disco Bot] Неожиданная ошибка при отправке фото в чат {chat_id}: {e}")
+                    break
 
         return success
 
-    def send_media_group(self, image_paths, caption=None, parse_mode='HTML'):
+    def send_media_group(self, image_paths, caption=None, parse_mode='HTML', max_retries=3, base_timeout=60):
         """
-        Отправка нескольких изображений одним сообщением (media group)
+        Отправка нескольких изображений одним сообщением (media group) с механизмом повторных попыток
 
         Args:
             image_paths (list[str]): Пути к изображениям
             caption (str): Подпись к группе (ставится на первое фото)
             parse_mode (str): Режим парсинга подписи
+            max_retries (int): Максимальное количество попыток отправки
+            base_timeout (int): Базовый таймаут для запроса в секундах
 
         Returns:
             bool: True если отправлено хотя бы одному получателю
@@ -265,42 +341,92 @@ class DiscoTelegramBot:
         api_url = f"https://api.telegram.org/bot{self.bot_token}/sendMediaGroup"
 
         for chat_id in self.chat_ids:
-            files = {}
-            try:
-                media = []
-                for idx, path in enumerate(valid_paths):
-                    file_key = f"photo{idx}"
-                    files[file_key] = open(path, 'rb')
-                    item = {
-                        'type': 'photo',
-                        'media': f"attach://{file_key}"
+            chat_success = False
+
+            for attempt in range(max_retries):
+                files = {}
+                try:
+                    current_timeout = base_timeout * (2 ** attempt)
+
+                    if attempt > 0:
+                        print(f"[Disco Bot] Попытка {attempt + 1}/{max_retries} отправки media group в чат {chat_id} (таймаут: {current_timeout}с)")
+
+                    media = []
+                    for idx, path in enumerate(valid_paths):
+                        file_key = f"photo{idx}"
+                        files[file_key] = open(path, 'rb')
+                        item = {
+                            'type': 'photo',
+                            'media': f"attach://{file_key}"
+                        }
+                        if idx == 0 and caption:
+                            item['caption'] = caption
+                            item['parse_mode'] = parse_mode
+                        media.append(item)
+                    data = {
+                        'chat_id': chat_id,
+                        'media': json.dumps(media)
                     }
-                    if idx == 0 and caption:
-                        item['caption'] = caption
-                        item['parse_mode'] = parse_mode
-                    media.append(item)
-                data = {
-                    'chat_id': chat_id,
-                    'media': json.dumps(media)
-                }
-                response = requests.post(api_url, data=data, files=files, timeout=30)
-                for f in files.values():
-                    try:
-                        f.close()
-                    except Exception:
-                        pass
-                if response.status_code == 200:
-                    success = True
-                    print(f"[Disco Bot] Media group отправлена в чат {chat_id}")
-                else:
-                    print(f"[Disco Bot] Ошибка отправки media group в чат {chat_id}: {response.status_code} - {response.text}")
-            except Exception as e:
-                for f in files.values():
-                    try:
-                        f.close()
-                    except Exception:
-                        pass
-                print(f"[Disco Bot] Ошибка при отправке media group в чат {chat_id}: {e}")
+                    response = requests.post(api_url, data=data, files=files, timeout=current_timeout)
+
+                    # Закрываем файлы
+                    for f in files.values():
+                        try:
+                            f.close()
+                        except Exception:
+                            pass
+
+                    if response.status_code == 200:
+                        chat_success = True
+                        success = True
+                        print(f"[Disco Bot] Media group отправлена в чат {chat_id}")
+                        break
+                    else:
+                        print(f"[Disco Bot] Ошибка отправки media group в чат {chat_id}: {response.status_code} - {response.text}")
+                        if response.status_code < 500:
+                            break
+
+                except (Timeout, ConnectionError) as e:
+                    # Закрываем файлы при ошибке
+                    for f in files.values():
+                        try:
+                            f.close()
+                        except Exception:
+                            pass
+
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt
+                        print(f"[Disco Bot] Таймаут/сетевая ошибка при отправке media group в чат {chat_id}: {e}")
+                        print(f"[Disco Bot] Повторная попытка через {wait_time}с...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"[Disco Bot] Не удалось отправить media group в чат {chat_id} после {max_retries} попыток: {e}")
+
+                except RequestException as e:
+                    # Закрываем файлы при ошибке
+                    for f in files.values():
+                        try:
+                            f.close()
+                        except Exception:
+                            pass
+
+                    print(f"[Disco Bot] Ошибка запроса при отправке media group в чат {chat_id}: {e}")
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt
+                        print(f"[Disco Bot] Повторная попытка через {wait_time}с...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"[Disco Bot] Не удалось отправить media group в чат {chat_id} после {max_retries} попыток")
+
+                except Exception as e:
+                    # Закрываем файлы при ошибке
+                    for f in files.values():
+                        try:
+                            f.close()
+                        except Exception:
+                            pass
+                    print(f"[Disco Bot] Неожиданная ошибка при отправке media group в чат {chat_id}: {e}")
+                    break
 
         return success
 
@@ -367,6 +493,9 @@ class DiscoTelegramBot:
                     playlist_message = "".join(playlist_lines).rstrip()
                     self.send_message(playlist_message)
 
+                    # Небольшая задержка между сообщениями (защита от флуда Telegram API)
+                    time.sleep(0.5)
+
                     # Начинаем новую часть
                     playlist_lines = []
                     playlist_lines.append(f"📋 <b>Плейлист (продолжение):</b>\n")
@@ -378,6 +507,8 @@ class DiscoTelegramBot:
 
             # Отправляем оставшуюся часть
             if len(playlist_lines) > 1:  # Больше чем просто заголовок
+                # Небольшая задержка перед отправкой плейлиста после основного сообщения
+                time.sleep(0.5)
                 playlist_message = "".join(playlist_lines).rstrip()
                 self.send_message(playlist_message)
                 success = True
