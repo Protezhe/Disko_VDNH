@@ -1113,6 +1113,9 @@
                         <button class="btn btn-danger" onclick="closeVLC()">
                             ⏹️ Закрыть VLC
                         </button>
+                        <button class="btn btn-warning" onclick="gitPullAndReboot()">
+                            🔄 Git Pull & Reboot
+                        </button>
                     </div>
                 </div>
 
@@ -1894,7 +1897,7 @@
             try {
                 const response = await fetch('/api/close', { method: 'POST' });
                 const result = await response.json();
-                
+
                 if (result.success) {
                     showNotification('VLC закрыт', 'success');
                     log('⏹️ VLC закрыт');
@@ -1906,6 +1909,31 @@
             } catch (error) {
                 log('❌ Ошибка закрытия VLC: ' + error.message);
                 showNotification('Ошибка закрытия VLC', 'error');
+            }
+        }
+
+        // Git Pull и перезагрузка
+        async function gitPullAndReboot() {
+            try {
+                if (!confirm('Вы уверены, что хотите обновить код и перезагрузить Orange Pi?')) {
+                    return;
+                }
+
+                showNotification('Запуск обновления и перезагрузки...', 'warning');
+                log('🔄 Запуск git pull и перезагрузки Orange Pi');
+
+                const response = await fetch('/api/git_pull_reboot', { method: 'POST' });
+                const result = await response.json();
+
+                if (result.success) {
+                    showNotification('Обновление запущено, система перезагружается...', 'success');
+                    log('✅ Git pull выполнен, Orange Pi перезагружается');
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                log('❌ Ошибка обновления: ' + error.message);
+                showNotification('Ошибка обновления', 'error');
             }
         }
 

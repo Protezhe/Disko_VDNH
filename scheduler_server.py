@@ -12,6 +12,7 @@ import json
 import time
 import signal
 import socket
+import subprocess
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
@@ -1063,6 +1064,53 @@ class DiscoServer:
             except Exception as e:
                 self.log(f"❌ Ошибка загрузки интерфейса администрирования: {str(e)}")
                 return Response(f"Ошибка загрузки: {str(e)}", mimetype='text/plain', status=500)
+
+        @self.app.route('/api/git_pull_reboot', methods=['POST'])
+        def git_pull_and_reboot():
+            """Git pull и перезагрузка Orange Pi"""
+            try:
+                self.log("🔄 Получен запрос на обновление кода и перезагрузку")
+
+                # Останавливаем VLC
+                try:
+                    self.scheduler.close_vlc(send_notification=False)
+                    self.log("⏹️ VLC остановлен")
+                except Exception as e:
+                    self.log(f"⚠️ Ошибка остановки VLC: {e}")
+
+                # Запускаем git pull и reboot в фоновом режиме
+                def run_git_pull_and_reboot():
+                    try:
+                        import time
+                        time.sleep(2)  # Даем время на отправку ответа
+
+                        # Git pull
+                        self.log("🔄 Выполняем git pull...")
+                        git_result = subprocess.run(
+                            ['git', 'pull'],
+                            cwd=get_exe_dir(),
+                            capture_output=True,
+                            text=True,
+                            timeout=30
+                        )
+                        self.log(f"Git pull stdout: {git_result.stdout}")
+                        if git_result.stderr:
+                            self.log(f"Git pull stderr: {git_result.stderr}")
+
+                        # Перезагрузка
+                        self.log("🔄 Перезагрузка Orange Pi...")
+                        subprocess.run(['sudo', 'reboot'], check=False)
+                    except Exception as e:
+                        self.log(f"❌ Ошибка при выполнении git pull/reboot: {e}")
+
+                # Запускаем в отдельном потоке
+                thread = Thread(target=run_git_pull_and_reboot, daemon=True)
+                thread.start()
+
+                return jsonify({'success': True, 'message': 'Git pull и перезагрузка запущены'})
+            except Exception as e:
+                self.log(f"❌ Ошибка git pull/reboot: {str(e)}")
+                return jsonify({'success': False, 'message': str(e)})
     
     def run_scheduler_loop(self):
         """Основной цикл проверки расписания"""
