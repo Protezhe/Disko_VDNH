@@ -1180,15 +1180,15 @@ class DiscoServer:
         self.log("=" * 60)
         self.log("🎀 ВЕБ-ИНТЕРФЕЙС В СТИЛЕ HELLO KITTY ДОСТУПЕН! 🎀")
         self.log("=" * 60)
-        
-        # Отправляем уведомление о запуске сервера в Telegram (отключено)
-        # if self.scheduler.telegram_bot and self.scheduler.telegram_bot.enabled and self.scheduler.telegram_bot.notifications_enabled:
-        #     try:
-        #         self.scheduler.telegram_bot.notify_server_started()
-        #         self.log("📱 Уведомление о запуске сервера отправлено в Telegram")
-        #     except Exception as e:
-        #         self.log(f'⚠️ Ошибка отправки Telegram уведомления о запуске: {e}')
-        
+
+        # Отправляем уведомление о перезагрузке сервера в Telegram
+        if self.scheduler.telegram_bot and self.scheduler.telegram_bot.enabled and self.scheduler.telegram_bot.notifications_enabled:
+            try:
+                self.scheduler.telegram_bot.notify_server_started()
+                self.log("📱 Уведомление о перезагрузке сервера отправлено в Telegram")
+            except Exception as e:
+                self.log(f'⚠️ Ошибка отправки Telegram уведомления о перезагрузке: {e}')
+
         # Запускаем цикл планировщика в отдельном потоке
         scheduler_thread = Thread(target=self.run_scheduler_loop, daemon=True)
         scheduler_thread.start()

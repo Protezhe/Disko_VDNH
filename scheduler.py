@@ -302,20 +302,23 @@ class DiscoScheduler:
     def calculate_disco_duration_hours(self):
         """
         Вычисляет длительность дискотеки в часах на основе start_time и stop_time.
-        
+        Уменьшает длительность на 3 минуты для плейлиста.
+
         Returns:
-            float: Длительность в часах
+            float: Длительность в часах (на 3 минуты меньше времени дискотеки)
         """
         start_datetime = datetime.combine(datetime.now().date(), self.start_time)
         stop_datetime = datetime.combine(datetime.now().date(), self.stop_time)
-        
+
         # Если stop_time меньше start_time, значит дискотека работает через полночь
         if self.stop_time < self.start_time:
             stop_datetime += timedelta(days=1)
-        
+
         duration = stop_datetime - start_datetime
-        duration_hours = duration.total_seconds() / 3600.0
-        
+        # Вычитаем 3 минуты (180 секунд) из длительности
+        duration_seconds = duration.total_seconds() - 180
+        duration_hours = duration_seconds / 3600.0
+
         return duration_hours
     
     def generate_and_launch(self):
