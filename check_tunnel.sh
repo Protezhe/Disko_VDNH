@@ -71,7 +71,7 @@ check_web_tunnel_health() {
     return 1
 }
 
-# Отправка уведомления в Telegram через Python
+# Отправка уведомления в ВК через Python
 send_telegram_notification() {
     local url="$1"
 
@@ -85,15 +85,15 @@ send_telegram_notification() {
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) or '.')
-from telegram_bot import TelegramNotifier
+from vk_bot import DiscoVKBot
 
 url = sys.argv[1] if len(sys.argv) > 1 else "URL не определен"
-notifier = TelegramNotifier()
-message = f"<b>Туннель создан!</b>\n\nПубличная ссылка:\n{url}"
-if notifier.send_message(message):
-    print("[Tunnel] Уведомление отправлено в Telegram")
+bot = DiscoVKBot()
+message = f"Туннель создан!\n\nПубличная ссылка:\n{url}"
+if bot.send_message(message):
+    print("[Tunnel] Уведомление отправлено в ВК")
 else:
-    print("[Tunnel] Не удалось отправить уведомление в Telegram")
+    print("[Tunnel] Не удалось отправить уведомление в ВК")
 PYTHON_SCRIPT
 }
 

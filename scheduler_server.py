@@ -85,9 +85,9 @@ class DiscoServer:
         self.audio_monitor = None
         self.init_audio_monitor()
 
-        # Запуск телеграм-бота в отдельном потоке
-        self.telegram_bot_thread = None
-        self.init_telegram_bot()
+        # Запуск VK-бота в отдельном потоке
+        self.vk_bot_thread = None
+        self.init_vk_bot()
 
         # Инициализация Flask приложения
         self.app = Flask(__name__)
@@ -126,25 +126,25 @@ class DiscoServer:
         except Exception as e:
             self.log(f"❌ Ошибка инициализации мониторинга звука: {e}")
 
-    def init_telegram_bot(self):
-        """Инициализация и запуск телеграм-бота в отдельном потоке"""
+    def init_vk_bot(self):
+        """Инициализация и запуск VK-бота в отдельном потоке"""
         try:
             if self.scheduler.telegram_bot and self.scheduler.telegram_bot.bot:
-                self.log("🤖 Запуск телеграм-бота в отдельном потоке...")
+                self.log("🤖 Запуск VK-бота в отдельном потоке...")
 
                 def run_bot():
                     try:
                         self.scheduler.telegram_bot.start_polling()
                     except Exception as e:
-                        self.log(f"❌ Ошибка в работе телеграм-бота: {e}")
+                        self.log(f"❌ Ошибка в работе VK-бота: {e}")
 
-                self.telegram_bot_thread = Thread(target=run_bot, daemon=True, name="TelegramBot")
-                self.telegram_bot_thread.start()
-                self.log("✅ Телеграм-бот запущен (уведомления + команды)")
+                self.vk_bot_thread = Thread(target=run_bot, daemon=True, name="VKBot")
+                self.vk_bot_thread.start()
+                self.log("✅ VK-бот запущен (уведомления + команды)")
             else:
-                self.log("ℹ️ Телеграм-бот не активирован")
+                self.log("ℹ️ VK-бот не активирован")
         except Exception as e:
-            self.log(f"❌ Ошибка запуска телеграм-бота: {e}")
+            self.log(f"❌ Ошибка запуска VK-бота: {e}")
 
     def on_silence_detected(self, level):
         """Обработчик обнаружения тишины"""
@@ -159,14 +159,14 @@ class DiscoServer:
             try:
                 result = self.scheduler.telegram_bot.notify_music_restored(silence_time)
                 if result:
-                    self.log(f"✅ Уведомление о восстановлении отправлено в Telegram")
+                    self.log(f"✅ Уведомление о восстановлении отправлено в ВК")
                 else:
                     self.log(f"ℹ️ Уведомление о восстановлении не отправлено")
             except Exception as e:
-                self.log(f'⚠️ Ошибка отправки Telegram уведомления: {e}')
+                self.log(f'⚠️ Ошибка отправки ВК уведомления: {e}')
         else:
             self.log(f"ℹ️ Уведомление не отправлено: вне расписания дискотеки")
-    
+
     def on_silence_warning(self, silence_time):
         """Обработчик предупреждения о длительной тишине"""
         self.log(f"⚠️ ТИШИНА! {silence_time:.0f}с")
@@ -174,14 +174,14 @@ class DiscoServer:
         # Отправляем уведомление если сейчас время дискотеки по расписанию
         if self.scheduler.is_disco_scheduled_now():
             try:
-                self.log(f"📱 Отправка уведомления о тишине в Telegram...")
+                self.log(f"📱 Отправка уведомления о тишине в ВК...")
                 result = self.scheduler.telegram_bot.notify_music_stopped(silence_time)
                 if result:
-                    self.log(f"✅ Уведомление о тишине отправлено в Telegram")
+                    self.log(f"✅ Уведомление о тишине отправлено в ВК")
                 else:
                     self.log(f"❌ Уведомление не отправлено (бот не активирован или уведомления отключены)")
             except Exception as e:
-                self.log(f'⚠️ Ошибка отправки Telegram уведомления: {e}')
+                self.log(f'⚠️ Ошибка отправки ВК уведомления: {e}')
         else:
             now = datetime.now()
             self.log(f"ℹ️ Уведомление не отправлено: вне расписания (день: {now.weekday()}, время: {now.strftime('%H:%M')})")
@@ -284,7 +284,7 @@ class DiscoServer:
             self.log(f"❌ Ошибка сохранения длительности саундчека: {e}")
 
     def run_soundcheck_and_notify(self):
-        """Запуск саундчека V2, расчет схожести и отправка в Telegram при необходимости"""
+        """Запуск саундчека V2, расчет схожести и отправка в ВК при необходимости"""
         sc2 = SoundCheckV2(audio_monitor=self.audio_monitor)
         sc2.run_soundcheck()
         similarity = sc2.compare_with_previous()
@@ -318,12 +318,12 @@ class DiscoServer:
                 else:
                     sent = self.scheduler.telegram_bot.send_message(caption)
             except Exception as te:
-                self.log(f"⚠️ Ошибка отправки Telegram сообщения: {te}")
+                self.log(f"⚠️ Ошибка отправки ВК сообщения: {te}")
         return {
             'success': True,
             'similarity': similarity,
             'verdict': verdict,
-            'telegram_sent': sent,
+            'vk_sent': sent,
             'graph_paths': [p for p in [image_path_ref, image_path_new] if os.path.exists(p)]
         }
     
@@ -575,21 +575,23 @@ class DiscoServer:
                 return jsonify({'error': str(e)})
         
         @self.app.route('/api/telegram/notifications/toggle', methods=['POST'])
-        def toggle_telegram_notifications():
-            """Переключение состояния Telegram уведомлений"""
+        @self.app.route('/api/vk/notifications/toggle', methods=['POST'])
+        def toggle_vk_notifications():
+            """Переключение состояния ВК уведомлений"""
             try:
                 if self.scheduler.telegram_bot:
                     enabled = self.scheduler.telegram_bot.toggle_notifications()
-                    self.log(f"Telegram уведомления {'включены' if enabled else 'отключены'}")
+                    self.log(f"ВК уведомления {'включены' if enabled else 'отключены'}")
                     return jsonify({'success': True, 'enabled': enabled})
                 else:
-                    return jsonify({'success': False, 'message': 'Telegram bot not initialized'})
+                    return jsonify({'success': False, 'message': 'VK bot not initialized'})
             except Exception as e:
                 return jsonify({'success': False, 'message': str(e)})
-        
+
         @self.app.route('/api/telegram/notifications/status', methods=['GET'])
-        def get_telegram_notifications_status():
-            """Получение статуса Telegram уведомлений"""
+        @self.app.route('/api/vk/notifications/status', methods=['GET'])
+        def get_vk_notifications_status():
+            """Получение статуса ВК уведомлений"""
             try:
                 if self.scheduler.telegram_bot:
                     return jsonify({
@@ -599,39 +601,41 @@ class DiscoServer:
                         'status_text': self.scheduler.telegram_bot.get_notifications_status()
                     })
                 else:
-                    return jsonify({'error': 'Telegram bot not initialized'})
+                    return jsonify({'error': 'VK bot not initialized'})
             except Exception as e:
                 return jsonify({'error': str(e)})
-        
+
         @self.app.route('/api/telegram/notifications/enable', methods=['POST'])
-        def enable_telegram_notifications():
-            """Включение Telegram уведомлений"""
+        @self.app.route('/api/vk/notifications/enable', methods=['POST'])
+        def enable_vk_notifications():
+            """Включение ВК уведомлений"""
             try:
                 if self.scheduler.telegram_bot:
                     success = self.scheduler.telegram_bot.enable_notifications()
                     if success:
-                        self.log("Telegram уведомления включены")
+                        self.log("ВК уведомления включены")
                         return jsonify({'success': True, 'enabled': True})
                     else:
                         return jsonify({'success': False, 'message': 'Failed to enable notifications'})
                 else:
-                    return jsonify({'success': False, 'message': 'Telegram bot not initialized'})
+                    return jsonify({'success': False, 'message': 'VK bot not initialized'})
             except Exception as e:
                 return jsonify({'success': False, 'message': str(e)})
-        
+
         @self.app.route('/api/telegram/notifications/disable', methods=['POST'])
-        def disable_telegram_notifications():
-            """Отключение Telegram уведомлений"""
+        @self.app.route('/api/vk/notifications/disable', methods=['POST'])
+        def disable_vk_notifications():
+            """Отключение ВК уведомлений"""
             try:
                 if self.scheduler.telegram_bot:
                     success = self.scheduler.telegram_bot.disable_notifications()
                     if success:
-                        self.log("Telegram уведомления отключены")
+                        self.log("ВК уведомления отключены")
                         return jsonify({'success': True, 'enabled': False})
                     else:
                         return jsonify({'success': False, 'message': 'Failed to disable notifications'})
                 else:
-                    return jsonify({'success': False, 'message': 'Telegram bot not initialized'})
+                    return jsonify({'success': False, 'message': 'VK bot not initialized'})
             except Exception as e:
                 return jsonify({'success': False, 'message': str(e)})
         
@@ -723,7 +727,7 @@ class DiscoServer:
 
         @self.app.route('/api/soundcheck', methods=['POST'])
         def api_soundcheck_run():
-            """Запуск сравнения саундчека и отправка результата в Telegram (если включены уведомления)"""
+            """Запуск сравнения саундчека и отправка результата в ВК (если включены уведомления)"""
             try:
                 result = self.run_soundcheck_and_notify()
                 return jsonify(result)
@@ -1181,13 +1185,13 @@ class DiscoServer:
         self.log("🎀 ВЕБ-ИНТЕРФЕЙС В СТИЛЕ HELLO KITTY ДОСТУПЕН! 🎀")
         self.log("=" * 60)
 
-        # Отправляем уведомление о перезагрузке сервера в Telegram
+        # Отправляем уведомление о перезагрузке сервера в ВК
         if self.scheduler.telegram_bot and self.scheduler.telegram_bot.enabled and self.scheduler.telegram_bot.notifications_enabled:
             try:
                 self.scheduler.telegram_bot.notify_server_started()
-                self.log("📱 Уведомление о перезагрузке сервера отправлено в Telegram")
+                self.log("📱 Уведомление о перезагрузке сервера отправлено в ВК")
             except Exception as e:
-                self.log(f'⚠️ Ошибка отправки Telegram уведомления о перезагрузке: {e}')
+                self.log(f'⚠️ Ошибка отправки ВК уведомления о перезагрузке: {e}')
 
         # Запускаем цикл планировщика в отдельном потоке
         scheduler_thread = Thread(target=self.run_scheduler_loop, daemon=True)

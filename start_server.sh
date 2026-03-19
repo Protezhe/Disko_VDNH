@@ -39,13 +39,7 @@ echo ""
 # Активируем виртуальное окружение
 source venv/bin/activate
 
-# Проверяем и устанавливаем pyTelegramBotAPI если нужно
-if ! python -c "import telebot" 2>/dev/null; then
-    echo "📦 Установка pyTelegramBotAPI..."
-    pip install pyTelegramBotAPI
-fi
-
-echo "ℹ️  Телеграм-бот теперь запускается автоматически с сервером"
+echo "ℹ️  VK-бот запускается автоматически с сервером"
 echo ""
 
 # Функция для очистки при выходе

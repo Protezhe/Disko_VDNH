@@ -1000,7 +1000,7 @@
                             <div class="status-value" id="monitoringStatus">Загрузка...</div>
                         </div>
                         <div class="status-item">
-                            <div class="status-label">Telegram</div>
+                            <div class="status-label">ВК</div>
                             <div class="status-value" id="telegramStatus">Загрузка...</div>
                         </div>
                         <div class="status-item">
@@ -1016,7 +1016,7 @@
                             Переключить Мониторинг
                         </button>
                         <button class="btn btn-primary" onclick="toggleTelegram()" id="telegramBtn">
-                            Переключить Telegram
+                            Переключить ВК
                         </button>
                         <button class="btn btn-secondary" onclick="switchConfig()" style="background: linear-gradient(135deg, #8b5cf6, #ec4899); border: none;">
                             Сменить Плейлист
@@ -1529,18 +1529,18 @@
                 if (telegramStatus.notifications_enabled) {
                     telegramStatusEl.textContent = 'ВКЛЮЧЕНЫ';
                     telegramStatusEl.className = 'status-value status-enabled';
-                    telegramBtn.textContent = 'Отключить Telegram';
+                    telegramBtn.textContent = 'Отключить ВК';
                     telegramBtn.className = 'btn btn-success';
                 } else {
                     telegramStatusEl.textContent = 'ОТКЛЮЧЕНЫ';
                     telegramStatusEl.className = 'status-value status-disabled';
-                    telegramBtn.textContent = 'Включить Telegram';
+                    telegramBtn.textContent = 'Включить ВК';
                     telegramBtn.className = 'btn btn-danger';
                 }
             } else {
                 telegramStatusEl.textContent = 'НЕ АКТИВИРОВАН';
                 telegramStatusEl.className = 'status-value status-disabled';
-                telegramBtn.textContent = 'Telegram недоступен';
+                telegramBtn.textContent = 'ВК недоступен';
                 telegramBtn.className = 'btn btn-warning';
             }
         }
@@ -1730,16 +1730,16 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showNotification(`Telegram уведомления ${result.enabled ? 'включены' : 'отключены'}`, 'success');
-                    log(`✅ Telegram уведомления ${result.enabled ? 'включены' : 'отключены'}`);
+                    showNotification(`ВК уведомления ${result.enabled ? 'включены' : 'отключены'}`, 'success');
+                    log(`✅ ВК уведомления ${result.enabled ? 'включены' : 'отключены'}`);
                     // Обновляем статус сразу после переключения
                     await updateStatus();
                 } else {
                     throw new Error(result.message);
                 }
             } catch (error) {
-                log('❌ Ошибка переключения Telegram: ' + error.message);
-                showNotification('Ошибка переключения Telegram', 'error');
+                log('❌ Ошибка переключения ВК: ' + error.message);
+                showNotification('Ошибка переключения ВК', 'error');
             }
         }
 
@@ -1975,8 +1975,8 @@
                     if (result.similarity !== null) {
                         message += ` (схожесть: ${result.similarity.toFixed(2)}%)`;
                     }
-                    if (result.telegram_sent) {
-                        message += ' - отправлено в Telegram';
+                    if (result.vk_sent) {
+                        message += ' - отправлено в ВК';
                     }
                     
                     showNotification(message, 'success');

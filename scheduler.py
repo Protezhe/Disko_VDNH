@@ -12,7 +12,7 @@ from datetime import datetime, time, timedelta
 from threading import Lock
 from playlist_gen import PlaylistGenerator
 from vlc_playlist import VLCPlaylistLauncher
-from telegram_bot_commands import TelegramNotifier
+from vk_bot import TelegramNotifier
 from config_manager import ConfigManager
 
 
@@ -369,12 +369,12 @@ class DiscoScheduler:
                 self.is_automatic_close = True
                 # Отправляем уведомление о начале дискотеки с плейлистом
                 try:
-                    self.log(f'📱 Отправка уведомления в Telegram с плейлистом ({len(playlist)} треков)...')
+                    self.log(f'📱 Отправка уведомления в ВК с плейлистом ({len(playlist)} треков)...')
                     # Передаем время начала дискотеки для расчета времени начала каждого трека
                     self.telegram_bot.notify_disco_started(playlist=playlist, start_time=self.start_time)
-                    self.log(f'✅ Уведомление с плейлистом отправлено в Telegram')
+                    self.log(f'✅ Уведомление с плейлистом отправлено в ВК')
                 except Exception as e:
-                    self.log(f'⚠️ Ошибка отправки Telegram уведомления: {e}')
+                    self.log(f'⚠️ Ошибка отправки ВК уведомления: {e}')
                 return True
             else:
                 self.log('❌ Ошибка при запуске VLC')
@@ -455,7 +455,7 @@ class DiscoScheduler:
                     try:
                         self.telegram_bot.notify_disco_stopped()
                     except Exception as e:
-                        self.log(f'⚠️ Ошибка отправки Telegram уведомления: {e}')
+                        self.log(f'⚠️ Ошибка отправки ВК уведомления: {e}')
                 return True
 
             return False
