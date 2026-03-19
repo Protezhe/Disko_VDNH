@@ -512,17 +512,26 @@ class DiscoVKBot:
 
         print(f"[VK Bot] Сообщение от {from_id} в {peer_id}: '{text}'")
 
-        # Отвечаем только в нашей беседе
-        if peer_id not in self.peer_ids:
-            return
+        # Если пишут в ЛС группе — автоматически подписываем на уведомления
+        if peer_id > 0 and peer_id not in self.peer_ids:
+            self.add_chat_id(peer_id)
+            self._send_to_peer(peer_id, "Вы подписаны на уведомления дискотеки! Напишите 'команды' для списка команд.")
 
         if text in ('/start', 'начать', 'команды', 'помощь'):
             help_text = (
                 "Бот управления сервером дискотеки\n\n"
                 "Доступные команды:\n"
-                "/tunnel - Получить ссылку на веб-интерфейс"
+                "/tunnel - Получить ссылку на веб-интерфейс\n"
+                "отписаться - Отключить уведомления"
             )
             self._send_to_peer(peer_id, help_text)
+
+        elif text in ('отписаться', 'отписка', 'стоп', '/stop'):
+            if peer_id in self.peer_ids:
+                self.remove_chat_id(peer_id)
+                self._send_to_peer(peer_id, "Вы отписаны от уведомлений. Напишите что угодно, чтобы подписаться снова.")
+            else:
+                self._send_to_peer(peer_id, "Вы и так не подписаны.")
 
         elif text in ('/tunnel', 'tunnel', 'туннель'):
             self._send_to_peer(peer_id, "Перезапускаю туннель... Это может занять до 30 секунд.")
