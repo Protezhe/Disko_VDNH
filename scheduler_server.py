@@ -37,6 +37,7 @@ def get_local_ip():
     """Получает локальный IP адрес машины."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(2)
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
         s.close()

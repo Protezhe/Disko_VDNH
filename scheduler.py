@@ -9,7 +9,7 @@ import os
 import sys
 import json
 from datetime import datetime, time, timedelta
-from threading import Lock
+from threading import Lock, Thread
 from playlist_gen import PlaylistGenerator
 from vlc_playlist import VLCPlaylistLauncher
 from vk_bot import TelegramNotifier
@@ -367,14 +367,15 @@ class DiscoScheduler:
                 self.disco_is_active = True
                 # Сбрасываем флаг автоматического закрытия (при запуске дискотеки)
                 self.is_automatic_close = True
-                # Отправляем уведомление о начале дискотеки с плейлистом
-                try:
-                    self.log(f'📱 Отправка уведомления в ВК с плейлистом ({len(playlist)} треков)...')
-                    # Передаем время начала дискотеки для расчета времени начала каждого трека
-                    self.telegram_bot.notify_disco_started(playlist=playlist, start_time=self.start_time)
-                    self.log(f'✅ Уведомление с плейлистом отправлено в ВК')
-                except Exception as e:
-                    self.log(f'⚠️ Ошибка отправки ВК уведомления: {e}')
+                # Отправляем уведомление о начале дискотеки в отдельном потоке (чтобы не блокировать запуск музыки)
+                def _send_notification():
+                    try:
+                        self.log(f'📱 Отправка уведомления в ВК с плейлистом ({len(playlist)} треков)...')
+                        self.telegram_bot.notify_disco_started(playlist=playlist, start_time=self.start_time)
+                        self.log(f'✅ Уведомление с плейлистом отправлено в ВК')
+                    except Exception as e:
+                        self.log(f'⚠️ Ошибка отправки ВК уведомления: {e}')
+                Thread(target=_send_notification, daemon=True).start()
                 return True
             else:
                 self.log('❌ Ошибка при запуске VLC')
@@ -452,10 +453,12 @@ class DiscoScheduler:
             if closed_count > 0:
                 # Отправляем уведомление о завершении дискотеки только если это автоматическое закрытие
                 if send_notification and is_automatic:
-                    try:
-                        self.telegram_bot.notify_disco_stopped()
-                    except Exception as e:
-                        self.log(f'⚠️ Ошибка отправки ВК уведомления: {e}')
+                    def _send_stop_notification():
+                        try:
+                            self.telegram_bot.notify_disco_stopped()
+                        except Exception as e:
+                            self.log(f'⚠️ Ошибка отправки ВК уведомления: {e}')
+                    Thread(target=_send_stop_notification, daemon=True).start()
                 return True
 
             return False

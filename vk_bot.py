@@ -106,7 +106,7 @@ class DiscoVKBot:
         params['access_token'] = self.vk_token
         params['v'] = self.VK_API_VERSION
         url = f"{self.VK_API_BASE}/{method}"
-        response = requests.post(url, data=params)
+        response = requests.post(url, data=params, timeout=10)
         result = response.json()
         if 'error' in result:
             raise Exception(f"VK API error: {result['error']}")
@@ -116,7 +116,7 @@ class DiscoVKBot:
     # Отправка сообщений
     # ============================================
 
-    def send_message(self, message, parse_mode=None, max_retries=3, base_timeout=30):
+    def send_message(self, message, parse_mode=None, max_retries=3, base_timeout=10):
         """
         Отправка текстового сообщения в ВК всем получателям.
         parse_mode игнорируется (для совместимости интерфейса).
