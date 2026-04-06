@@ -187,7 +187,17 @@ class VLCPlaylistLauncher:
                 if remaining_count == 0:
                     print(f'✅ Все процессы VLC закрыты ({closed_count})')
                 else:
-                    print(f'⚠️ Закрыто {closed_count} процессов, осталось {remaining_count}')
+                    # SIGKILL для зависших процессов
+                    print(f'⚠️ Осталось {remaining_count} процессов VLC, принудительное завершение (SIGKILL)...')
+                    for proc in psutil.process_iter(['name', 'pid']):
+                        try:
+                            proc_name = proc.info['name']
+                            if proc_name and any(vlc_name in proc_name.lower() for vlc_name in vlc_process_names):
+                                proc.kill()
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            continue
+                    time.sleep(0.5)
+                    print(f'✅ Принудительное завершение выполнено')
             else:
                 print('ℹ️ Процессы VLC не найдены')
                 

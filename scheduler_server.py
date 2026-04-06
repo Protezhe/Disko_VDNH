@@ -34,21 +34,47 @@ def get_exe_dir():
 
 
 def get_local_ip():
-    """Получает локальный IP адрес машины."""
+    """Получает локальный IP адрес машины (работает без интернета)."""
+    # Способ 1: через UDP-сокет к внешнему адресу (не требует реального соединения)
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.settimeout(2)
+        s.settimeout(1)
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
         s.close()
         return ip
-    except:
-        try:
-            hostname = socket.gethostname()
-            ip = socket.gethostbyname(hostname)
+    except Exception:
+        pass
+
+    # Способ 2: через ip route (Linux, работает полностью офлайн)
+    try:
+        result = subprocess.run(
+            ['ip', '-4', 'route', 'get', '1'],
+            capture_output=True, text=True, timeout=3
+        )
+        if result.returncode == 0:
+            # Формат: "1.0.0.0 via ... dev ... src 192.168.1.10 uid ..."
+            for part in result.stdout.split():
+                if part.count('.') == 3:
+                    try:
+                        socket.inet_aton(part)
+                        if part not in ('1.0.0.0', '127.0.0.1'):
+                            return part
+                    except socket.error:
+                        continue
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # Способ 3: через hostname
+    try:
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        if ip != '127.0.1.1':  # На некоторых Linux возвращает 127.0.1.1
             return ip
-        except:
-            return "127.0.0.1"
+    except Exception:
+        pass
+
+    return "127.0.0.1"
 
 
 class DiscoServer:
@@ -132,20 +158,32 @@ class DiscoServer:
         try:
             if self.scheduler.telegram_bot and self.scheduler.telegram_bot.bot:
                 self.log("🤖 Запуск VK-бота в отдельном потоке...")
-
-                def run_bot():
-                    try:
-                        self.scheduler.telegram_bot.start_polling()
-                    except Exception as e:
-                        self.log(f"❌ Ошибка в работе VK-бота: {e}")
-
-                self.vk_bot_thread = Thread(target=run_bot, daemon=True, name="VKBot")
-                self.vk_bot_thread.start()
+                self._start_vk_bot_thread()
                 self.log("✅ VK-бот запущен (уведомления + команды)")
             else:
                 self.log("ℹ️ VK-бот не активирован")
         except Exception as e:
             self.log(f"❌ Ошибка запуска VK-бота: {e}")
+
+    def _start_vk_bot_thread(self):
+        """Создает и запускает поток VK-бота"""
+        def run_bot():
+            try:
+                self.scheduler.telegram_bot.start_polling()
+            except Exception as e:
+                self.log(f"❌ Ошибка в работе VK-бота: {e}")
+
+        self.vk_bot_thread = Thread(target=run_bot, daemon=True, name="VKBot")
+        self.vk_bot_thread.start()
+
+    def check_vk_bot_health(self):
+        """Проверяет, жив ли поток VK-бота, и перезапускает при необходимости"""
+        if (self.scheduler.telegram_bot and self.scheduler.telegram_bot.bot
+                and self.vk_bot_thread is not None
+                and not self.vk_bot_thread.is_alive()):
+            self.log("⚠️ VK-бот поток умер, перезапуск...")
+            self._start_vk_bot_thread()
+            self.log("✅ VK-бот перезапущен")
 
     def on_silence_detected(self, level):
         """Обработчик обнаружения тишины"""
@@ -1125,7 +1163,10 @@ class DiscoServer:
             try:
                 # Проверяем расписание
                 self.scheduler.check_schedule()
-                
+
+                # Проверяем, жив ли поток VK-бота
+                self.check_vk_bot_health()
+
                 # Автоматический саундчек за настроенное количество минут до старта дискотеки
                 if self.soundcheck_schedule_enabled:
                     next_info = self.scheduler.get_next_run()

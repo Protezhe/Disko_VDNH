@@ -8,12 +8,16 @@
 import os
 import sys
 import json
+import time as time_module
 from datetime import datetime, time, timedelta
 from threading import Lock, Thread
 from playlist_gen import PlaylistGenerator
 from vlc_playlist import VLCPlaylistLauncher
 from vk_bot import TelegramNotifier
 from config_manager import ConfigManager
+
+# Глобальный lock для синхронизации записи в конфиг из всех компонентов
+CONFIG_LOCK = Lock()
 
 
 def get_resource_path(relative_path):
@@ -41,8 +45,8 @@ def get_exe_dir():
 class DiscoScheduler:
     """Класс планировщика дискотеки"""
     
-    # Глобальный lock для синхронизации записи в конфиг
-    _config_lock = Lock()
+    # Используем глобальный CONFIG_LOCK для синхронизации записи в конфиг
+    _config_lock = CONFIG_LOCK
     
     def __init__(self, config_file=None, log_callback=None):
         """
@@ -75,10 +79,14 @@ class DiscoScheduler:
         
         # Отслеживание последнего закрытия VLC (чтобы не закрывать повторно в ту же минуту)
         self.last_close_time = None
+
+        # Отслеживание последнего автоперезапуска VLC (защита от частых перезапусков)
+        self.last_vlc_restart_time = None
+        self.vlc_restart_cooldown = 30  # Минимум 30 секунд между перезапусками
         
         # Инициализация компонентов
         self.vlc_launcher = VLCPlaylistLauncher()
-        self.telegram_bot = TelegramNotifier(self.config_file)
+        self.telegram_bot = TelegramNotifier(self.config_file, config_lock=CONFIG_LOCK)
         self.config_manager = ConfigManager()
 
         # Загружаем настройки
@@ -296,7 +304,28 @@ class DiscoScheduler:
                 self.last_close_time = current_minute_key
                 result['action'] = 'vlc_closed'
                 result['message'] = 'VLC закрыт'
-        
+
+        # Проверяем, что VLC жив во время активной дискотеки
+        if (self.disco_is_active and should_be_active
+                and not self.vlc_launcher.is_vlc_running()):
+            # Защита от слишком частых перезапусков
+            now_ts = time_module.time()
+            if (self.last_vlc_restart_time is None
+                    or now_ts - self.last_vlc_restart_time > self.vlc_restart_cooldown):
+                self.log('⚠️ VLC не запущен во время дискотеки! Автоматический перезапуск...')
+                playlists = self.vlc_launcher.find_playlists()
+                if playlists:
+                    playlist = self.vlc_launcher.get_latest_playlist(playlists)
+                    if playlist and self.vlc_launcher.launch_vlc(playlist, close_existing=True):
+                        self.last_vlc_restart_time = now_ts
+                        self.log('✅ VLC перезапущен автоматически')
+                        result['action'] = 'vlc_restarted'
+                        result['message'] = 'VLC перезапущен после падения'
+                    else:
+                        self.log('❌ Не удалось перезапустить VLC')
+                else:
+                    self.log('❌ Плейлисты не найдены для перезапуска VLC')
+
         return result
     
     def calculate_disco_duration_hours(self):
@@ -362,7 +391,27 @@ class DiscoScheduler:
             self.log('Запускаю VLC плеер...')
             
             if self.vlc_launcher.launch_vlc(playlist_file, close_existing=True):
-                self.log('✅ VLC успешно запущен')
+                self.log('✅ VLC запущен, ожидаю запуск процесса (до 15 сек)...')
+                # На Orange Pi VLC может запускаться до 10 секунд
+                vlc_started = False
+                for i in range(15):
+                    time_module.sleep(1)
+                    if self.vlc_launcher.is_vlc_running():
+                        vlc_started = True
+                        self.log(f'✅ VLC работает (обнаружен через {i + 1} сек)')
+                        break
+                if not vlc_started:
+                    self.log('⚠️ VLC не обнаружен! Повторная попытка запуска...')
+                    self.vlc_launcher.launch_vlc(playlist_file, close_existing=True)
+                    for i in range(15):
+                        time_module.sleep(1)
+                        if self.vlc_launcher.is_vlc_running():
+                            vlc_started = True
+                            self.log(f'✅ VLC запущен со второй попытки (через {i + 1} сек)')
+                            break
+                    if not vlc_started:
+                        self.log('❌ VLC не удалось запустить после 2 попыток')
+                        return False
                 # Устанавливаем флаг активности дискотеки
                 self.disco_is_active = True
                 # Сбрасываем флаг автоматического закрытия (при запуске дискотеки)

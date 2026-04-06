@@ -37,11 +37,12 @@ class DiscoVKBot:
     VK_API_VERSION = '5.199'
     VK_API_BASE = 'https://api.vk.com/method'
 
-    def __init__(self, config_file=None):
+    def __init__(self, config_file=None, config_lock=None):
         if config_file is None:
             config_file = os.path.join(get_exe_dir(), 'scheduler_config.json')
 
         self.config_file = config_file
+        self._config_lock = config_lock  # Общий lock для записи в конфиг (может быт�� None)
         self.vk_token = None
         self.group_id = None
         self.peer_ids = []  # ID бесед/пользователей для уведомлений
@@ -439,22 +440,38 @@ class DiscoVKBot:
         return False
 
     def save_config(self):
-        """Сохранение конфигурации в файл"""
-        try:
-            if os.path.exists(self.config_file):
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
+        """Сохранение конфигурации в файл (потокобезопасно через общий lock)"""
+        def _do_save():
+            try:
+                if os.path.exists(self.config_file):
+                    with open(self.config_file, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
 
-                config['vk_group_token'] = self.vk_token
-                config['vk_peer_ids'] = self.peer_ids
-                config['vk_notifications_enabled'] = self.notifications_enabled
+                    config['vk_group_token'] = self.vk_token
+                    config['vk_peer_ids'] = self.peer_ids
+                    config['vk_notifications_enabled'] = self.notifications_enabled
 
-                with open(self.config_file, 'w', encoding='utf-8') as f:
-                    json.dump(config, f, indent=2, ensure_ascii=False)
+                    # Атомарная запись через временный файл
+                    temp_file = self.config_file + '.tmp'
+                    with open(temp_file, 'w', encoding='utf-8') as f:
+                        json.dump(config, f, indent=2, ensure_ascii=False)
+                    os.replace(temp_file, self.config_file)
 
-                self.enabled = bool(self.vk_token)
-        except Exception as e:
-            print(f"[VK Bot] Ошибка при сохранении конфигурации: {e}")
+                    self.enabled = bool(self.vk_token)
+            except Exception as e:
+                print(f"[VK Bot] Ошибка при сохранении конфигурации: {e}")
+                temp_file = self.config_file + '.tmp'
+                if os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                    except Exception:
+                        pass
+
+        if self._config_lock:
+            with self._config_lock:
+                _do_save()
+        else:
+            _do_save()
 
     def enable_notifications(self):
         """Включить уведомления"""
